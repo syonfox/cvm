@@ -223,7 +223,7 @@ async function run(resume){
   try{
     const ctx=buildCtx(); savedCtx=ctx;
     const r=await fetch("/zero",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({q:prompt, ctx, format:outFmt, history:resume?savedHistory:null}),signal:ctl.signal});
+      body:JSON.stringify({q:prompt, ctx, format:outFmt, history:resume?savedHistory:null, tools:{web:true,exec:true}}),signal:ctl.signal});
     const j=await r.json();
     const s=(performance.now()-t0)/1000;
     clearInterval(timer);clearTimeout(to);

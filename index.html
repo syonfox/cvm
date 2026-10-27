@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>OSINT Graph Network</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
 <style>
   :root {
     --bg: #050810; --panel: rgba(12,18,34,0.72); --border: rgba(255,255,255,0.08);
@@ -49,15 +50,43 @@
   #graphHint{position:absolute;left:10px;top:10px;z-index:6;max-width:280px;background:rgba(5,8,16,.85);border:1px solid var(--border);border-radius:10px;padding:7px 10px;font-size:11.5px;color:var(--dim);line-height:1.5;backdrop-filter:blur(8px)}
   #graphHint b{color:var(--text)} #graphHint .on{color:#7dd3fc;font-weight:700}
   #ctxMenu{position:absolute;z-index:20;display:none;background:rgba(12,18,34,.97);border:1px solid var(--border);border-radius:12px;padding:8px;width:232px;box-shadow:0 12px 32px rgba(0,0,0,.6)}
+  /* slim selection bar: fixed at graph bottom, no floating popup */
+  #selBar{position:absolute;left:50%;transform:translateX(-50%);bottom:10px;z-index:6;display:none;align-items:center;gap:6px;background:rgba(5,8,16,.92);border:1px solid var(--border);border-radius:999px;padding:6px 10px;backdrop-filter:blur(8px);box-shadow:0 8px 28px rgba(0,0,0,.5);max-width:calc(100% - 20px);flex-wrap:wrap;justify-content:center}
+  #selBar .lbl{font-size:11.5px;color:var(--dim);white-space:nowrap}
+  #selBar button{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--text);border-radius:999px;padding:6px 11px;font-size:11.5px;cursor:pointer;white-space:nowrap}
+  #selBar button:hover{border-color:var(--cyan);color:var(--cyan)}
+  #selBar button.danger:hover{border-color:var(--rose);color:var(--rose)}
   #ctxMenu textarea{width:100%;box-sizing:border-box;background:rgba(0,0,0,.4);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:12px;font-family:inherit;resize:vertical}
   #ctxMenu button.act{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:7px 8px;cursor:pointer;font-size:12.5px;border-radius:8px}
   #ctxMenu button.act:hover{background:rgba(255,255,255,.07)}
   #ctxMenu button.go{background:linear-gradient(135deg,#0284c7,#7c3aed);color:#fff;font-weight:800;font-size:13px;justify-content:center;margin-top:6px;padding:9px 8px}
   #ctxMenu .hd{font-size:11px;color:var(--dim);padding:0 4px 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #ctxMenu .sec{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);padding:6px 4px 0}
-  #cyTools button{background:rgba(5,8,16,.85);border:1px solid var(--border);color:var(--text);border-radius:9px;width:32px;height:32px;font-size:16px;line-height:1;cursor:pointer;backdrop-filter:blur(8px)}
+  #cyTools{position:absolute;right:10px;top:50%;transform:translateY(-50%);z-index:6;display:flex;flex-direction:column;gap:6px}
+  #cyTools button{background:rgba(5,8,16,.85);border:1px solid var(--border);color:var(--text);border-radius:9px;width:34px;height:34px;font-size:14px;line-height:1;cursor:pointer;backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center}
   #cyTools button:disabled{opacity:.3;cursor:default}
   #cyTools button:hover:not(:disabled){border-color:var(--cyan);color:var(--cyan)}
+  #cyTools button.active-tool{border-color:var(--emerald);color:var(--emerald);box-shadow:0 0 12px rgba(52,211,153,.4)}
+  #cyTools button.holding{border-color:var(--violet);color:#fff;background:linear-gradient(135deg,#0284c7,#7c3aed)}
+  #cyTools .tb-sep{height:1px;background:var(--border);margin:2px 4px}
+  #cyTools .tb-grp{display:flex;flex-direction:column;gap:6px;background:rgba(5,8,16,.6);border:1px solid var(--border);border-radius:12px;padding:6px}
+  /* living page markdown view */
+  #npView{font-size:13px;line-height:1.65;word-break:break-word}
+  #npView h1,#npView h2,#npView h3{margin:10px 0 6px;line-height:1.3}
+  #npView h1{font-size:17px} #npView h2{font-size:15px} #npView h3{font-size:13.5px}
+  #npView p{margin:6px 0} #npView ul,#npView ol{margin:6px 0;padding-left:22px}
+  #npView li{margin:2px 0} #npView code{background:rgba(255,255,255,.08);border-radius:5px;padding:1px 5px;font-size:12px}
+  #npView pre{background:rgba(0,0,0,.45);border:1px solid var(--border);border-radius:8px;padding:8px;overflow:auto}
+  #npView pre code{background:none;padding:0}
+  #npView blockquote{margin:6px 0;padding:4px 10px;border-left:3px solid var(--violet);color:#cbd5e1;background:rgba(167,139,250,.06);border-radius:0 8px 8px 0}
+  #npView hr{border:none;border-top:1px solid var(--border);margin:10px 0}
+  #npView a.wikilink{color:#7dd3fc;text-decoration:none;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.3);border-radius:6px;padding:0 6px;cursor:pointer}
+  #npView a.wikilink:hover{background:rgba(56,189,248,.22)}
+  #npView a.ext{color:#a78bfa}
+  .np-chip{display:inline-block;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.3);color:#7dd3fc;border-radius:999px;padding:3px 10px;font-size:11.5px;margin:0 4px 4px 0;cursor:pointer}
+  .np-chip:hover{background:rgba(56,189,248,.2)}
+  .np-act{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.05);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 9px;font-size:12px;cursor:pointer;flex:1;justify-content:center}
+  .np-act:hover{border-color:var(--cyan);color:var(--cyan)}
   /* node page split-view: graph left, living page right */
   #nodePage{position:fixed;top:0;right:0;bottom:26px;width:min(560px,50vw);z-index:500;display:none;flex-direction:column;background:rgba(8,12,24,.97);border-left:1px solid var(--border);box-shadow:-20px 0 60px rgba(0,0,0,.6);backdrop-filter:blur(16px)}
   #nodePage.open{display:flex}
@@ -114,10 +143,10 @@
     <button id="importBtn" class="secondary">Import JSON</button>
     <button id="combineBtn" class="secondary">Combined View</button>
     <div id="viewSwitch" style="display:flex;background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:10px;overflow:hidden">
-      <button data-view="force" class="secondary" style="border:none;border-radius:0;padding:0 12px" title="Force-directed">Force</button>
-      <button data-view="tree" class="secondary" style="border:none;border-radius:0;padding:0 12px" title="Hierarchical tree">Tree</button>
-      <button data-view="grid" class="secondary" style="border:none;border-radius:0;padding:0 12px" title="Grid">Grid</button>
-      <button id="graphCfgBtn" class="secondary" style="border:none;border-radius:0;padding:0 10px" title="Graph physics config">⚙</button>
+      <button data-view="force" class="secondary" style="border:none;border-radius:0;padding:0 12px" title="Force-directed"><i class="fa-solid fa-share-nodes"></i> Force</button>
+      <button data-view="tree" class="secondary" style="border:none;border-radius:0;padding:0 12px" title="Hierarchical tree"><i class="fa-solid fa-diagram-project"></i> Tree</button>
+      <button data-view="grid" class="secondary" style="border:none;border-radius:0;padding:0 12px" title="Grid"><i class="fa-solid fa-table-cells"></i> Grid</button>
+      <button id="graphCfgBtn" class="secondary" style="border:none;border-radius:0;padding:0 10px" title="Graph physics config"><i class="fa-solid fa-gear"></i></button>
     </div>
     <details id="graphCfg" style="font-size:12px;color:var(--dim);background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:10px;padding:6px 10px;max-width:280px"><summary style="cursor:pointer">physics: best default — click to tune</summary>
       <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px;color:var(--text)">
@@ -126,7 +155,10 @@
         <label>Anti-bunch radius <span id="vSep"></span><input id="cSep" type="range" min="60" max="260" step="5" style="width:100%"></label>
         <label>Gravity <span id="vGrav"></span><input id="cGrav" type="range" min="0" max="2" step="0.05" style="width:100%"></label>
         <label>Text size <span id="vTxt"></span><input id="cTxt" type="range" min="0.6" max="2" step="0.1" style="width:100%"></label>
+        <label>Label gap <span id="vGap"></span><input id="cGap" type="range" min="0" max="24" step="1" style="width:100%"></label>
+        <label>Label width <span id="vWrap"></span><input id="cWrap" type="range" min="40" max="200" step="10" style="width:100%"></label>
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input id="cEdgeAlong" type="checkbox" checked style="width:16px;height:16px;accent-color:#a3e635"> relation text along the line</label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input id="cAuto" type="checkbox" checked style="width:16px;height:16px;accent-color:#a3e635"> auto-open page on node click</label>
         <div style="display:flex;gap:6px"><button id="cReset" class="secondary" style="flex:1">Best default</button><button id="cApply" class="secondary" style="flex:1">Apply + Settle</button></div>
       </div>
     </details>
@@ -134,7 +166,8 @@
     <button id="agentBtn" class="secondary">Copy Agent JSON</button>
     <button id="pngBtn" class="secondary" title="export PNG">PNG</button>
     <button id="svgBtn" class="secondary" title="export SVG">SVG</button>
-    <button id="settleBtn" class="secondary" title="re-run force layout">⚛ Settle</button>
+    <button id="dbBtn" class="secondary" title="offline snapshot: the visible graph + living pages + chat as a sqlite .db file"><i class="fa-solid fa-database"></i> SQLite</button>
+    <button id="settleBtn" class="secondary" title="re-run force layout"><i class="fa-solid fa-atom"></i> Settle</button>
     <button id="mergeBtn" class="secondary" title="merge JSON file into active tab">Merge JSON</button>
     <button id="improveNodeBtn" class="secondary" title="improve selected node + neighborhood">Improve node</button>
     <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;user-select:none"><input type="checkbox" id="toolWeb" checked style="width:18px;height:18px;accent-color:#a3e635" /> web</label>
@@ -148,18 +181,21 @@
     </details>
     <input id="fileInput" type="file" accept="application/json" style="display:none" />
   </div>
-  <button id="layerToggle">☰ Layers (<span id="layerCount">0</span>)</button>
+  <button id="layerToggle"><i class="fa-solid fa-bars"></i> Layers (<span id="layerCount">0</span>)</button>
   <div class="app">
   <aside id="layers">
     <h3><span>Layers</span><span id="layerVis"></span></h3>
     <div id="layerList"></div>
     <div id="layerFoot">
       <div class="row"><button id="showAll">Show all</button><button id="hideAll">Hide all</button><button id="clearAll">Clear</button></div>
+      <div class="row"><button id="shareBtn" title="copy share link — whoever knows the graph id can view it"><i class="fa-solid fa-link"></i> Share</button><button id="histBtn" title="version history of the active graph"><i class="fa-solid fa-clock-rotate-left"></i> History</button></div>
       <div id="layerStatus">—</div>
+      <div id="graphMeta" style="font-size:10.5px;color:var(--dim);word-break:break-all"></div>
+      <div id="graphHist" style="display:none;flex-direction:column;gap:4px;max-height:220px;overflow:auto"></div>
     </div>
   </aside>
   <div class="grid">
-    <div class="panel"><div id="cy"></div><div id="graphHint">Double-click + drag a node to slingshot a link · Click nodes to select · <b>right-click</b> for Ask / Path · <b>🛤</b> = path-pick</div><div id="ctxMenu"></div><div id="cyTools"><button id="undoBtn" title="undo (Ctrl+← or Ctrl+Z)">⟲</button><button id="redoBtn" title="redo (Ctrl+→ or Ctrl+Y)">⟳</button><button id="zIn" title="zoom in (+)">+</button><button id="zOut" title="zoom out (−)">−</button><button id="zFit" title="fit to view (F)">⤢</button><button id="zBig" title="big view / fullscreen (F11)">⛶</button><button id="pathMode" title="path-pick mode: click A then B">🛤</button></div></div>
+    <div class="panel"><div id="cy"></div><div id="graphHint">Double-click + drag a node to slingshot a link · Click a node to open its page · <b>Right-drag empty space</b> to pan</div><div id="ctxMenu" style="display:none"></div><div id="selBar"></div><div id="cyTools"><div class="tb-grp"><button id="undoBtn" title="undo (Ctrl+← or Ctrl+Z)"><i class="fa-solid fa-rotate-left"></i></button><button id="redoBtn" title="redo (Ctrl+→ or Ctrl+Y)"><i class="fa-solid fa-rotate-right"></i></button></div><div class="tb-grp"><button id="zIn" title="zoom in (+)"><i class="fa-solid fa-magnifying-glass-plus"></i></button><button id="zOut" title="zoom out (−)"><i class="fa-solid fa-magnifying-glass-minus"></i></button><button id="zFit" title="fit to view (F)"><i class="fa-solid fa-expand"></i></button><button id="zBig" title="big view / fullscreen (F11)"><i class="fa-solid fa-up-right-and-down-left-from-center"></i></button><button id="pathMode" title="path-pick mode: click A then B"><i class="fa-solid fa-route"></i></button></div><div class="tb-grp" title="flow tools"><button id="flowBlow" title="Blow apart — push nodes away from center"><i class="fa-solid fa-fan"></i></button><button id="flowGather" title="Gather — pull nodes toward center"><i class="fa-solid fa-magnet"></i></button><button id="flowGrow" title="Grow — enlarge selected nodes (or all)"><i class="fa-solid fa-circle-plus"></i></button><button id="flowShrink" title="Shrink — contract selected nodes (or all)"><i class="fa-solid fa-circle-minus"></i></button></div><div class="tb-grp"><button id="flowHold" title="PRESS AND HOLD — slowly flow into equilibrium (current view: Force / Tree / Grid)"><i class="fa-solid fa-hurricane"></i></button></div></div></div>
     <div class="side">
       <div class="card"><h3>Nodes</h3><div id="nodes"></div></div>
       <div class="card"><h3>Adversarial Flags</h3><div id="flags"></div></div>
@@ -182,7 +218,7 @@
         <textarea id="duelDirective" rows="1" placeholder="✎ steer both agents… (expands as you type)"></textarea>
         <div style="display:flex;gap:6px;margin-top:6px">
           <button id="duelBtn" class="secondary" style="flex:1;border-color:#34d399;color:#34d399;font-weight:800">⚔ Duel round</button>
-          <button id="duelAccept" class="secondary" style="flex:1;display:none;border-color:#a78bfa;color:#a78bfa;font-weight:800">✓ Accept</button>
+          <button id="duelAccept" class="secondary" style="flex:1;display:none;border-color:#a78bfa;color:#a78bfa;font-weight:800"><i class="fa-solid fa-check"></i> Accept</button>
         </div>
       </div>
       <div class="card"><h3>Input Chain ⛓ <span id="chainCount" style="opacity:.6"></span></h3><div id="chain" style="display:flex;flex-direction:column;gap:8px;max-height:420px;overflow:auto"></div></div>
@@ -275,8 +311,124 @@
     if(n.locked()){ n.unlock(); n.style("border-style","solid"); aiTerm("sys","unpinned "+n.id()); }
     else{ n.lock(); n.style({"border-style":"double","border-width":5}); aiTerm("sys","pinned "+n.id()+" (long-press to unpin)"); }
   });
-  cy.on("grab","node",()=>{ document.getElementById("cy").style.cursor="grabbing"; });
-  cy.on("free","node",()=>{ document.getElementById("cy").style.cursor="default"; });
+  cy.on("grab","node",()=>{ document.getElementById("cy").style.cursor="grabbing"; try{ setReflow(false); }catch(_){} });
+  cy.on("free","node",(e)=>{ document.getElementById("cy").style.cursor="default"; try{ if(e&&e.target&&e.target.id) Pos.pin(e.target.id()); }catch(_){} Pos.capture(); });
+  // ---- Layout memory: user positions survive re-renders; manual drags get weight (resistance to reflow) ----
+  // w: node id -> 0..1 drag weight. A hand-placed node (w=1) barely moves on
+  // auto-layout; layouts blend toward the saved spot instead of jumping.
+  const Pos = {
+    m: new Map(),
+    w: new Map(),
+    load() { try { for (const [k,v] of JSON.parse(localStorage.getItem("osint_pos")||"[]")) this.m.set(k,v); } catch(_){} try { for (const [k,v] of JSON.parse(localStorage.getItem("osint_posw")||"[]")) this.w.set(k,v); } catch(_){} },
+    save() { clearTimeout(this._t); this._t=setTimeout(()=>{ try{localStorage.setItem("osint_pos", JSON.stringify([...this.m].slice(-2000))); localStorage.setItem("osint_posw", JSON.stringify([...this.w].slice(-2000)));}catch(_){} },500); },
+    capture() { try{cy.nodes().forEach(n=>{ if(String(n.id()).startsWith("__"))return; this.m.set(n.id(),{...n.position()}); }); this.save();}catch(_){} },
+    pin(id) { try{ this.w.set(id, 1); this.save(); }catch(_){} },
+    weight(id) { return this.w.get(id) || 0; },
+    clearStale(ids) { try{ const keep=new Set(ids||[]); for (const k of [...this.m.keys()]) if(!keep.has(k)) this.m.delete(k); for (const k of [...this.w.keys()]) if(!keep.has(k)) this.w.delete(k); this.save(); }catch(_){} },
+  };
+  Pos.load();
+  // Reflow indicator: makes auto-layout visible + explicit (no more mystery jumps).
+  const setReflow = (on, msg) => {
+    let b = document.getElementById("reflowBadge");
+    if (!b) {
+      const cyEl = document.getElementById("cy");
+      b = document.createElement("div");
+      b.id = "reflowBadge";
+      b.style.cssText = "position:absolute;right:10px;top:10px;z-index:7;background:rgba(124,58,237,.92);color:#fff;border-radius:999px;padding:5px 12px;font-size:11.5px;font-weight:800;display:none;box-shadow:0 4px 18px rgba(0,0,0,.5)";
+      (cyEl.parentElement||document.body).appendChild(b);
+    }
+    if (on) { b.style.display = "block"; b.textContent = "◌ reflowing" + (msg ? " — " + msg : "…") + " · drag to pin"; document.getElementById("cy").style.cursor = "wait"; }
+    else { b.style.display = "none"; const c=document.getElementById("cy"); if(c&&c.style.cursor==="wait") c.style.cursor="default"; }
+  };
+  // ---- Poly module: polygons become clean rings, crossings get pushed apart ----
+  // Solved-game rules: a cycle is drawn as a regular polygon (order-preserving =
+  // fewest moves, zero self-overlap); crossing edge pairs repel until clear.
+  const Poly = {
+    adjOf(edges) { const a={}; edges.forEach(e=>{ (a[e.source]=a[e.source]||[]).push(e.target); (a[e.target]=a[e.target]||[]).push(e.source); }); return a; },
+    ringThrough(adj, a, b, maxLen=8) {
+      const prev={[a]:null}, q=[a];
+      while(q.length){ const cur=q.shift(); if(cur===b)break;
+        for(const nb of (adj[cur]||[])){ if(cur===a&&nb===b)continue; if(!(nb in prev)){prev[nb]=cur;q.push(nb);} } }
+      if(!(b in prev)) return null;
+      const path=[b]; let c=b, guard=0;
+      while(prev[c]!==null&&prev[c]!==undefined&&guard++<99){c=prev[c];path.unshift(c);}
+      return (path.length-1<=maxLen&&path[0]===a)?path:null;
+    },
+    allRings(edges, cap=12) {
+      const adj=this.adjOf(edges||[]), seen=new Set(), out=[];
+      for(const e of (edges||[])){
+        const r=this.ringThrough(adj, e.source, e.target);
+        if(!r) continue;
+        const k=[...r].sort().join("|");
+        if(seen.has(k)) continue; seen.add(k); out.push(r);
+        if(out.length>=cap) break;
+      }
+      return out.sort((x,y)=>x.length-y.length);
+    },
+    // regular-polygon targets, preserving current angular order (fewest moves)
+    targets(ids, getP) {
+      const pts=ids.map(id=>({id,p:getP(id)})).filter(o=>o.p);
+      if(pts.length<3) return null;
+      const cx=pts.reduce((s,o)=>s+o.p.x,0)/pts.length, cyy=pts.reduce((s,o)=>s+o.p.y,0)/pts.length;
+      const ord=[...pts].sort((u,v)=>Math.atan2(u.p.y-cyy,u.p.x-cx)-Math.atan2(v.p.y-cyy,v.p.x-cx));
+      const R=Math.max(70, Math.min(320, phys.len/(2*Math.sin(Math.PI/ord.length))));
+      const a0=Math.atan2(ord[0].p.y-cyy, ord[0].p.x-cx);
+      return ord.map((o,i)=>({id:o.id, x:cx+Math.cos(a0+i*2*Math.PI/ord.length)*R, y:cyy+Math.sin(a0+i*2*Math.PI/ord.length)*R}));
+    },
+    // live: gently circularize one fresh ring
+    polish(ids) {
+      const els=(ids||[]).map(id=>cy.getElementById(id)).filter(e=>e.length&&!e.locked());
+      if(els.length<3) return false;
+      const t=this.targets(els.map(e=>e.id()), id=>{const e=cy.getElementById(id); return e.length?{...e.position()}:null;});
+      if(!t) return false;
+      t.forEach(o=>{ const e=cy.getElementById(o.id); try{e.animation({position:{x:o.x,y:o.y}, duration:380, easing:"ease-out"}).play();}catch(_){} });
+      setTimeout(()=>Pos.capture(), 480);
+      return true;
+    },
+    // live: if this edge closed a polygon, clean just that ring
+    polishNewEdge(data, a, b) {
+      try {
+        const r=this.ringThrough(this.adjOf(data.edges||[]), a, b);
+        if(r&&r.length>=3&&this.polish(r)) aiTerm("sys",`polygon closed (${r.length} nodes) — ring tidied, crossings minimized`);
+      } catch(_){}
+    },
+  };
+  const orient=(p,q,r)=>(q.x-p.x)*(r.y-p.y)-(q.y-p.y)*(r.x-p.x);
+  const properX=(a,b,c,d)=>{const o1=orient(a,b,c),o2=orient(a,b,d),o3=orient(c,d,a),o4=orient(c,d,b);return((o1>0)!==(o2>0))&&((o3>0)!==(o4>0));};
+  const resolveCrossings=(pos, edges, locked, iters=25)=>{
+    if((edges||[]).length>300) return 0;
+    let fixed=0;
+    for(let it=0; it<iters; it++){
+      let moved=false;
+      for(let i=0;i<edges.length;i++) for(let j=i+1;j<edges.length;j++){
+        const A=edges[i], B=edges[j];
+        if(A.source===B.source||A.source===B.target||A.target===B.source||A.target===B.target) continue;
+        const a=pos.get(A.source),b=pos.get(A.target),c=pos.get(B.source),d=pos.get(B.target);
+        if(!a||!b||!c||!d) continue;
+        if(!properX(a,b,c,d)) continue;
+        let dx=(a.x+b.x-c.x-d.x)/2, dy=(a.y+b.y-c.y-d.y)/2;
+        const l=Math.hypot(dx,dy)||1; dx/=l; dy/=l;
+        const k=9;
+        const push=(p,id,s)=>{ if(locked.has(id)) return; const wgt=(typeof Pos!=="undefined"&&Pos.weight)?Pos.weight(id):0; if(wgt>=0.999) return; const g=(1-wgt*0.92)*k*s; p.x+=dx*g;p.y+=dy*g; };
+        push(a,A.source,1); push(b,A.target,1); push(c,B.source,-1); push(d,B.target,-1);
+        moved=true; fixed++;
+      }
+      if(!moved) break;
+    }
+    return fixed;
+  };
+  const regularizeRings=(pos, edges, locked)=>{
+    const rings=Poly.allRings(edges);
+    const claimed=new Set(); let n=0;
+    const wb=(id)=>(typeof Pos!=="undefined"&&Pos.weight)?Pos.weight(id):0;
+    for(const ring of rings){
+      if(ring.some(id=>claimed.has(id)||locked.has(id)||wb(id)>0.7)) continue;
+      const t=Poly.targets(ring, id=>pos.get(id));
+      if(!t) continue;
+      t.forEach(o=>{const p=pos.get(o.id); if(p&&!locked.has(o.id)){p.x+=(o.x-p.x)*0.9;p.y+=(o.y-p.y)*0.9;claimed.add(o.id);n++;}});
+    }
+    return n;
+  };
   // ---- slingshot link-drag: double-click (or double-tap) a node, drag, plop onto target ----
   // drop on node = connect · drop back on source = self-loop · drop on empty = new node+edge · drag out = cancel
   const linkDrag = { on:false, src:null, ghost:null, edge:null, cand:null, sx:0, sy:0 };
@@ -317,7 +469,7 @@
     }
     const r = cy.container().getBoundingClientRect();
     const out = rx<r.left-40||rx>r.right+40||ry<r.top-40||ry>r.bottom+40;
-    linkDrag.edge.data("label", out ? "✕ cancel" : (best ? (best.id()===linkDrag.src.id() ? "⟲ self-loop" : "➜ plop!") : "+ new node"));
+    linkDrag.edge.data("label", out ? "release: cancel" : (best ? (best.id()===linkDrag.src.id() ? "release: self-loop" : "release: link") : "+ new node"));
   };
   const endLink = (rx, ry, cancelled) => {
     if (!linkDrag.on) return;
@@ -331,39 +483,56 @@
     try { cy.nodes().forEach(n=>{ const w=n.data("width"); if(w) n.style({width:w, height:w}); }); } catch(_){}
     document.getElementById("cy").style.cursor = "default";
     linkDrag.on=false; linkDrag.src=null; linkDrag.cand=null; linkDrag.ghost=null; linkDrag.edge=null;
-    if (out) { try{aiTerm("sys","slingshot cancelled (dragged out)");}catch(_){} renderActive(); populateRelDropdowns(); return; }
-    pushHist();
+    if (out) { try{aiTerm("sys","slingshot cancelled (dragged out)");}catch(_){} return; }
     const d = tabs[activeTab].data;
-    const relOf = (a,b) => { const v = prompt(`Relation ${a} → ${b}:`, a===b ? "relates to self" : "related"); return (v&&v.trim())||"related"; };
+    const relOf = (a,b) => { const v = prompt(`Relation ${a} → ${b}:`, a===b ? "relates to self" : "related"); return v==null ? null : ((v&&v.trim())||"related"); };
+    let rel = null, label = null;
+    if (cand) { rel = relOf(src.data("label")||src.id(), cand.data("label")||cand.id()); if (rel==null) return; }
+    else { label = prompt("New node label:", "New node"); if (label==null) return; label = (label&&label.trim())||"New node"; rel = relOf(src.data("label")||src.id(), label); if (rel==null) return; }
+    pushHist();
     if (cand) {
-      const rel = relOf(src.data("label")||src.id(), cand.data("label")||cand.id());
       d.edges.push({ source:src.id(), target:cand.id(), rel });
       renderActive(); populateRelDropdowns(); renderTabs();
       flashIds([src.id(), cand.id()]); blerp(cand.id());
+      Poly.polishNewEdge(d, src.id(), cand.id());
       try { chainAdd({kind:"link", prompt:`slingshot ${src.id()} → ${cand.id()} (${rel})`, summary:`+1 edge (${rel})`, touch:[src.id(),cand.id()], before:null}); } catch(_){}
       try{aiTerm("sys",`plop! ${src.id()} → ${cand.id()} (${rel})`);}catch(_){}
     } else {
-      const label = prompt("New node label:", "New node") || "New node";
       const id = "n"+Date.now().toString(36);
       d.nodes.push({ id, label, kind:"Concept", attrs:{} });
-      const rel = relOf(src.data("label")||src.id(), label);
       d.edges.push({ source:src.id(), target:id, rel });
       renderActive(); populateRelDropdowns(); renderTabs();
       // plop the new node where the ghost died + juicy pop
       const el = cy.getElementById(id);
-      if (el.length) { el.position(ghostPos); el.addClass("sug-add"); flashIds([src.id(), id]); setTimeout(()=>{try{el.removeClass("sug-add");}catch(_){}},1800); }
+      if (el.length) { el.position(ghostPos); Pos.m.set(id, {...ghostPos}); Pos.save(); el.addClass("sug-add"); flashIds([src.id(), id]); setTimeout(()=>{try{el.removeClass("sug-add");}catch(_){}},1800); }
+      Poly.polishNewEdge(d, src.id(), id);
       try { chainAdd({kind:"link-new", prompt:`slingshot ${src.id()} → new “${label}” (${rel})`, summary:`+1 node +1 edge`, touch:[src.id(),id], before:null}); } catch(_){}
       try{aiTerm("sys",`plop! new node “${label}” linked from ${src.id()}`);}catch(_){}
     }
   };
   // desktop: double-click starts, container mousemove/mouseup drives it
   cy.on("dblclick", "node", (e)=>{ try{e.originalEvent.preventDefault();}catch(_){} startLink(e.target, e); });
+  // ---- AutoViz module: single tap visualizes (focus + open page). Double-tap wins for slingshot. ----
+  const AutoViz = {
+    on: localStorage.getItem("osint_autoviz") !== "0",
+    timer: null,
+    save() { try { localStorage.setItem("osint_autoviz", this.on ? "1" : "0"); } catch (_) {} },
+    focus(node) {
+      if (!this.on || !node || !node.length) return;
+      try { node.select(); } catch (_) {}
+      try { paintSelection(); } catch (_) {}
+      try { if (typeof openNodePage === "function") openNodePage(node.id(), "page"); } catch (_) {}
+    },
+  };
   // touch: two quick taps on same node starts it
   let lastTap={id:null,t:0};
   cy.on("tap","node",(e)=>{
     const now=Date.now(), id=e.target.id();
-    if (lastTap.id===id && now-lastTap.t<320) { startLink(e.target, e); lastTap={id:null,t:0}; return; }
+    if (lastTap.id===id && now-lastTap.t<320) { clearTimeout(AutoViz.timer); startLink(e.target, e); lastTap={id:null,t:0}; return; }
     lastTap={id,t:now};
+    const node=e.target;
+    clearTimeout(AutoViz.timer);
+    AutoViz.timer=setTimeout(()=>AutoViz.focus(node), 330);
   });
   (()=>{ const c=document.getElementById("cy");
     c.addEventListener("mousemove",(e)=>{ if(linkDrag.on) moveLink(e.clientX,e.clientY); });
@@ -411,9 +580,9 @@
     cy.elements().not(sel.closedNeighborhood()).addClass("dimmed");
   };
   // clear neighbor-follow state + visual selection: halo on node, highlight neighborhood, dim rest
-  cy.on("tap","node",(e)=>{ paintSelection(); });
-  cy.on("tap",(e)=>{ if(e.target===cy){ cy.elements().removeClass("neighbor dimmed"); paintSelection(); try{paintHint();}catch(_){} } });
-  cy.on("select unselect","node",(e)=>{ paintSelection(); try{paintHint();}catch(_){} });
+  cy.on("tap","node",(e)=>{ paintSelection(); try{paintSelBar();}catch(_){} });
+  cy.on("tap",(e)=>{ if(e.target===cy){ cy.elements().removeClass("neighbor dimmed"); paintSelection(); try{paintHint();}catch(_){} try{paintSelBar();}catch(_){} } });
+  cy.on("select unselect","node",(e)=>{ paintSelection(); try{paintHint();}catch(_){} try{paintSelBar();}catch(_){} });
   // Active view: force | tree | grid (persisted). Tree = breadthfirst hierarchy, Grid = grid.
   let viewMode = localStorage.getItem("osint_view") || "force";
 
@@ -480,9 +649,10 @@
     clearTimeout(saveT);
     saveT=setTimeout(()=>{
       try{
+        try{ Pos.capture(); }catch(_){} // persist the lived-in layout WITH the tabs
         for(const t of tabs) t.data=normData(t.data);
         localStorage.setItem(LS_KEY, JSON.stringify({tabs, activeTab, tabCounter,
-          settings:{phys, view:viewMode, text:textScale, toolWeb:document.getElementById("toolWeb").checked, toolExec:document.getElementById("toolExec").checked}}));
+          settings:{phys, view:viewMode, text:Type.state.text, type:Type.state, autoviz:AutoViz.on, toolWeb:document.getElementById("toolWeb").checked, toolExec:document.getElementById("toolExec").checked}}));
         const nn=tabs.reduce((a,t)=>a+(t.data.nodes||[]).length,0);
         storeStatus(`saved ✓ ${tabs.length} layer(s) · ${nn} nodes · ${new Date().toLocaleTimeString()}`);
       }catch(e){ storeStatus("save failed: "+e.message); }
@@ -492,13 +662,15 @@
     try{
       const raw=localStorage.getItem(LS_KEY); if(!raw) return false;
       const st=JSON.parse(raw);
-      for(const t of (st.tabs||[])) tabs.push({id:t.id, name:t.name, visible:t.visible!==false, data:normData(t.data), created:t.created||Date.now()});
+      for(const t of (st.tabs||[])) tabs.push({id:t.id, uuid:t.uuid||(crypto.randomUUID?crypto.randomUUID():("g-"+Date.now().toString(36)+Math.floor(Math.random()*1e9).toString(36))), version:t.version||0, name:t.name, visible:t.visible!==false, data:normData(t.data), created:t.created||Date.now()});
       activeTab=Math.min(st.activeTab??-1, tabs.length-1);
       tabCounter=st.tabCounter||tabs.length;
       if(st.settings){
         if(st.settings.phys) phys=Object.assign({},BEST,st.settings.phys);
         if(st.settings.view){ viewMode=st.settings.view; localStorage.setItem("osint_view",viewMode); }
-        if(st.settings.text){ textScale=parseFloat(st.settings.text)||1; localStorage.setItem("osint_text",String(textScale)); try{applyTextSize();}catch(_){} }
+        if(st.settings.text){ Type.state.text=parseFloat(st.settings.text)||1; try{applyTextSize();}catch(_){} }
+        if(st.settings.type) Object.assign(Type.state, st.settings.type);
+        if(st.settings.autoviz!==undefined) AutoViz.on=st.settings.autoviz!=="0"&&st.settings.autoviz!==false;
         if(st.settings.toolWeb===false){ localStorage.setItem("osint_tool_web","0"); document.getElementById("toolWeb").checked=false; }
         if(st.settings.toolExec===true){ localStorage.setItem("osint_tool_exec","1"); document.getElementById("toolExec").checked=true; }
       }
@@ -526,7 +698,7 @@
       const pr = (c.prompt||"").replace(/</g,"&lt;").slice(0,220);
       return `<div data-chain="${c.id}" style="border:1px solid var(--border);border-left:3px solid ${dot};border-radius:8px;padding:8px;background:rgba(0,0,0,.3);font-size:12px;cursor:pointer">
         <div style="display:flex;gap:6px;align-items:center"><b>${c.kind||"edit"}</b><span style="color:var(--dim);font-size:11px">${t}</span>
-        <span style="margin-left:auto;display:flex;gap:4px"><button data-cview="${c.id}" title="re-highlight this change" style="background:none;border:none;cursor:pointer">👁</button><button data-crevert="${c.id}" title="revert to before this change" style="background:none;border:none;cursor:pointer">⟲</button></span></div>
+        <span style="margin-left:auto;display:flex;gap:4px"><button data-cview="${c.id}" title="re-highlight this change" style="background:none;border:none;cursor:pointer;color:var(--text)"><i class="fa-solid fa-eye"></i></button><button data-crevert="${c.id}" title="revert to before this change" style="background:none;border:none;cursor:pointer;color:var(--text)"><i class="fa-solid fa-rotate-left"></i></button></span></div>
         <div style="color:var(--text);margin:4px 0">❝ ${pr||"(no prompt)"} ❞</div>
         <div style="color:var(--dim);font-size:11px">${sum}</div></div>`;
     }).join("");
@@ -572,9 +744,9 @@
     list.innerHTML = tabs.map((t,i)=>{
       const n=(t.data.nodes||[]).length, e=(t.data.edges||[]).length;
       return `<div class="layer ${i===activeTab?'active':''} ${t.visible===false?'hidden-eye':''}" data-i="${i}">
-        <button class="eye" data-eye="${i}" title="toggle visibility">${t.visible===false?'👁‍🗨':'👁️'}</button>
+        <button class="eye" data-eye="${i}" title="toggle visibility"><i class="fa-solid ${t.visible===false?'fa-eye-slash':'fa-eye'}"></i></button>
         <span class="nm">${t.name}</span><span class="ct">${n}n ${e}e</span>
-        <button class="dely" data-del="${i}" title="delete layer">✕</button></div>`;
+        <button class="dely" data-del="${i}" title="delete layer"><i class="fa-solid fa-xmark"></i></button></div>`;
     }).join("") || `<div style="color:var(--dim);font-size:13px;">No layers yet. Build one.</div>`;
     list.querySelectorAll(".layer").forEach(el=>{
       el.addEventListener("click", (ev)=>{
@@ -593,16 +765,50 @@
       if(activeTab>=tabs.length) activeTab=tabs.length-1;
       renderActive(); renderTabs();
     }));
+    try{ paintGraphMeta(); }catch(_){}
     save();
   };
 
-  const render = (data, tabName) => {
+  const render = (data, tabName, opts = {}) => {
     const id = ++tabCounter;
-    tabs.push({id, name: tabName || `Graph ${id}`, visible:true, data:normData(data), created:Date.now()});
+    tabs.push({id, uuid: opts.uuid || (crypto.randomUUID ? crypto.randomUUID() : ("g-" + Date.now().toString(36) + Math.floor(Math.random() * 1e9).toString(36))), version: opts.version || 0,
+      name: tabName || `Graph ${id}`, visible:true, data:normData(data), created:Date.now()});
     activeTab = tabs.length-1;
     renderActive();
     renderTabs();
+    return tabs[activeTab];
   };
+  // ---- git-like graph history: every improvement commits the FULL document (time + graph id) ----
+  const graphDoc = (t) => ({ nodes: (t.data.nodes || []), edges: (t.data.edges || []), adversarial: (t.data.adversarial || []) });
+  let commitT = null, commitMsg = "";
+  const commitSoon = (tab, message) => {
+    if (!tab || !tab.uuid) return;
+    commitMsg = message ? (commitMsg ? commitMsg + " · " + message : message) : commitMsg;
+    clearTimeout(commitT);
+    commitT = setTimeout(() => commitGraph(tab, commitMsg), 4000);
+  };
+  const commitGraph = async (tab, message) => {
+    if (!tab || !tab.uuid) return;
+    commitMsg = "";
+    try {
+      const r = await fetch(BACKEND + "/api/graph/commit", { method: "POST", headers: aiHeaders(),
+        body: JSON.stringify({ uuid: tab.uuid, name: tab.name, doc: graphDoc(tab), message: (message || "edit").slice(0, 300), username: npUser() }) });
+      const j = await r.json();
+      if (j.ok) {
+        tab.version = j.version;
+        try { paintGraphMeta(); } catch (_) {}
+        try { save(); } catch (_) {}
+      }
+    } catch (_) { /* offline: local state still has everything; will commit on next improvement */ }
+  };
+  const paintGraphMeta = () => {
+    const el = document.getElementById("graphMeta");
+    if (!el) return;
+    const t = tabs[activeTab];
+    if (!t) { el.textContent = ""; return; }
+    el.innerHTML = `<i class="fa-solid fa-fingerprint"></i> <span title="${t.uuid}">${String(t.uuid).slice(0, 8)}</span> · v${t.version || 0} · <span style="opacity:.7">know the id → open the graph</span>`;
+  };
+  const shareURL = (uuid) => { const u = new URL(window.location.href); u.search = ""; u.searchParams.set("g", uuid); return u.toString(); };
 
   const degreeOf = (data) => { const d={}; for(const e of (data.edges||[])){ d[e.source]=(d[e.source]||0)+1; d[e.target]=(d[e.target]||0)+1; } return d; };
   const sizeEls = (els, data) => { const deg=degreeOf(data); for(const el of els){ if(el.data.width) continue; el.data.width=el.data.height=34+Math.min(44,(deg[el.data.id]||0)*5); } return deg; };
@@ -634,7 +840,7 @@
   const boidsSettle = () => {
     const nodes = cy.nodes();
     const N = nodes.length;
-    if (!N) return;
+    if (!N) return { rings: 0, crossings: 0 };
     const pos = new Map(), locked = new Set();
     nodes.forEach(n=>{ pos.set(n.id(), {...n.position()}); if(n.locked()) locked.add(n.id()); });
     // adjacency for cohesion/alignment
@@ -675,15 +881,24 @@
       pos.forEach(p=>{cx+=p.x;cy0+=p.y;cnt++;}); cx/=cnt; cy0/=cnt;
       pos.forEach((p,id)=>push(id,(cx-p.x)*wGrav,(cy0-p.y)*wGrav));
       // integrate with damping + step cap
+      // integrate with damping + step cap; hand-placed nodes resist (weight 0..1)
       pos.forEach((p,id)=>{
         if(locked.has(id)) return;
+        const wgt = (typeof Pos!=="undefined"&&Pos.weight)?Pos.weight(id):0;
+        if(wgt>=0.999) return; // pinned by hand: stays put
         const v=vel.get(id), f=F.get(id)||{x:0,y:0};
         v.x=(v.x+f.x)*damp; v.y=(v.y+f.y)*damp;
         const s=Math.hypot(v.x,v.y);
         if(s>maxStep){v.x*=maxStep/s;v.y*=maxStep/s;}
-        p.x+=v.x; p.y+=v.y;
+        const give=1-wgt*0.92;
+        p.x+=v.x*give; p.y+=v.y*give;
       });
     }
+    // solved-game finish: rings become regular polygons, then crossings repel —
+    // all offline on the pos map, so the single animation below lands clean.
+    const edgeList = cy.edges().map(e=>({source:e.source().id(), target:e.target().id()}));
+    const ringN = regularizeRings(pos, edgeList, locked);
+    const crossN = resolveCrossings(pos, edgeList, locked);
     // animate once to targets with overshoot easing (non-linear)
     const from = new Map(); nodes.forEach(n=>from.set(n.id(),{...n.position()}));
     const DUR = N>300?650:850; const t0=performance.now();
@@ -699,6 +914,8 @@
       if(k<1) requestAnimationFrame(frame); else cy.fit(40);
     };
     requestAnimationFrame(frame);
+    setTimeout(()=>Pos.capture(), DUR+120); // remember the solved spots
+    return { rings: ringN, crossings: crossN };
   };
   const paintViewSwitch = () => {
     document.querySelectorAll("#viewSwitch [data-view]").forEach(b=>{
@@ -708,7 +925,7 @@
     });
   };
   document.querySelectorAll("#viewSwitch [data-view]").forEach(b=>b.onclick=()=>{
-    viewMode=b.dataset.view; localStorage.setItem("osint_view",viewMode); paintViewSwitch(); renderActive();
+    viewMode=b.dataset.view; localStorage.setItem("osint_view",viewMode); paintViewSwitch(); forceLayout=true; renderActive();
   });
   paintViewSwitch();
   const batchAdd = (els) => {
@@ -739,15 +956,38 @@
     }
     return {nodes:[...nm.values()], edges:[...em.values()], adversarial:adv};
   };
+  // restores user layout; new nodes drop near a known neighbor, else spiral at centroid.
+  // returns true when nothing was known (fresh graph → needs a real layout run).
+  const layoutMemory = (data) => {
+    let known = 0;
+    const adj = {};
+    for (const e of (data.edges||[])) { (adj[e.source]=adj[e.source]||[]).push(e.target); (adj[e.target]=adj[e.target]||[]).push(e.source); }
+    let cx=0, cyy=0, n=0;
+    cy.nodes().forEach(el=>{ const p=Pos.m.get(el.id()); if(p){cx+=p.x;cyy+=p.y;n++;} });
+    if (n) { cx/=n; cyy/=n; }
+    let k=0;
+    cy.nodes().forEach(el=>{
+      const p=Pos.m.get(el.id());
+      if (p) { el.position(p); known++; return; }
+      let anchor=null;
+      for (const nb of (adj[el.id()]||[])) { const q=Pos.m.get(nb); if(q){anchor=q;break;} }
+      const a=k*2.4, r=anchor?95:150+k*16;
+      const np={x:(anchor?anchor.x:cx)+Math.cos(a)*r, y:(anchor?anchor.y:cyy)+Math.sin(a)*r};
+      el.position(np); Pos.m.set(el.id(), {...np}); k++;
+    });
+    Pos.save();
+    return known===0;
+  };
+  let forceLayout = true; // first paint lays out; later renders keep user layout
   const renderActive = () => {
-    const shown = tabs.filter(t=>t.visible!==false);
-    if (!shown.length) {
+    Pos.capture();
+    const data = visibleData();
+    if (!data.nodes.length && !data.edges.length) {
       cy.elements().remove();
-      document.getElementById("nodes").innerHTML = `<div class="empty">No visible layers — toggle 👁️ in Layers</div>`;
+      document.getElementById("nodes").innerHTML = `<div class="empty">No visible layers — toggle the eye icon in Layers</div>`;
       document.getElementById("flags").innerHTML = `<div class="empty" style="padding:12px">No flags</div>`;
       return;
     }
-    const data = visibleData();
     cy.elements().remove();
     const els = [];
     const ids = new Set((data.nodes||[]).map(n=>n.id));
@@ -764,7 +1004,29 @@
     }
     if (dropped) aiTerm("sys", `dropped ${dropped} dangling edge(s) with missing endpoint`);
     batchAdd(els);
-    cy.layout(fastLayout(els.length)).run();
+    const fresh = layoutMemory(data);
+    if (fresh || forceLayout) {
+      try{ setReflow(true, (fresh?"fresh graph":"view changed")); }catch(_){}
+      const l = cy.layout(fastLayout(els.length));
+      l.one("layoutstop", ()=>{
+        try{
+          // drag weights: blend hand-placed nodes back toward their saved spots
+          cy.nodes().forEach(n=>{
+            const wgt=Pos.weight(n.id()); if(!wgt) return;
+            const s=Pos.m.get(n.id()); if(!s) return;
+            const p=n.position();
+            n.position({x:s.x+(p.x-s.x)*(1-wgt*0.92), y:s.y+(p.y-s.y)*(1-wgt*0.92)});
+          });
+        }catch(_){}
+        Pos.capture(); try{ setReflow(false); }catch(_){}
+      });
+      l.run();
+      // safety: never leave the badge stuck if layoutstop is missed
+      setTimeout(()=>{ try{ setReflow(false); }catch(_){} }, 4000);
+    }
+    forceLayout = false;
+    try{ Pos.clearStale((data.nodes||[]).map(n=>n.id)); }catch(_){}
+    try{ if(typeof paintSelBar==="function") paintSelBar(); }catch(_){}
     const nl = document.getElementById("nodes");
     nl.innerHTML = (data.nodes||[]).map(n=>`<div class="node" data-node="${n.id}" style="cursor:pointer" title="open living page"><span class="dot" style="background:${colors[n.kind]||'#94a3b8'}"></span><span><b>${n.label}</b> <span style="color:var(--dim)">(${n.kind}${n.layer?" · "+n.layer:""})</span></span></div>`).join("") || `<div class="empty">No nodes</div>`;
     const fl = document.getElementById("flags");
@@ -797,9 +1059,49 @@
     tabs[activeTab].data.edges.push({source:s, target:t, rel:label, data:{label}});
     renderActive();
     populateRelDropdowns();
+    try{ commitSoon(tabs[activeTab], "add relation " + label); }catch(_){}
   };
   // layers footer + mobile toggle
   document.getElementById("layerToggle").onclick = () => document.getElementById("layers").classList.toggle("open");
+  document.getElementById("shareBtn").onclick = async () => {
+    const t = tabs[activeTab];
+    if (!t) { aiTerm("sys", "nothing to share — build a graph first"); return; }
+    const url = shareURL(t.uuid);
+    try { await navigator.clipboard.writeText(url); } catch (_) {}
+    try { commitSoon(t, "share link copied"); } catch (_) {}
+    aiTerm("sys", `share link copied (graph ${String(t.uuid).slice(0, 8)} · v${t.version || 0}) — whoever knows the id can view it`);
+    prompt("Share this link — whoever knows the graph id can view it:", url);
+  };
+  document.getElementById("histBtn").onclick = async () => {
+    const t = tabs[activeTab], box = document.getElementById("graphHist");
+    if (!t) return;
+    const open = box.style.display !== "none";
+    if (open) { box.style.display = "none"; return; }
+    box.style.display = "flex";
+    box.innerHTML = `<div style="font-size:11px;color:var(--dim)">loading history…</div>`;
+    try {
+      const r = await fetch(BACKEND + "/api/graph/versions?uuid=" + encodeURIComponent(t.uuid));
+      const j = await r.json();
+      const vs = j.versions || [];
+      box.innerHTML = vs.length ? vs.map(v => `<div style="display:flex;align-items:center;gap:6px;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:11px">
+        <b>v${v.version}</b><span style="flex:1;color:var(--dim)">${new Date(v.created * 1000).toLocaleString()} · ${escH(v.message || "edit").slice(0, 60)}</span>
+        <button data-restore="${v.version}" style="background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.4);color:#7dd3fc;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11px">restore</button></div>`).join("")
+        : `<div style="font-size:11px;color:var(--dim)">no commits yet — they land here on every improvement.</div>`;
+      box.querySelectorAll("[data-restore]").forEach(btn => btn.onclick = () => restoreVersion(t, Number(btn.dataset.restore)));
+    } catch (e) { box.innerHTML = `<div style="font-size:11px;color:var(--dim)">history offline</div>`; }
+  };
+  const restoreVersion = async (t, v) => {
+    try {
+      const r = await fetch(BACKEND + "/api/graph?id=" + encodeURIComponent(t.uuid) + "&v=" + v);
+      const j = await r.json();
+      if (!j.ok) return;
+      pushHist();
+      t.data = normData(j.doc);
+      renderActive(); populateRelDropdowns(); renderTabs();
+      commitSoon(t, "revert to v" + v);
+      aiTerm("sys", `restored v${v} of ${String(t.uuid).slice(0, 8)} (revert will commit as a new version)`);
+    } catch (e) { aiTerm("sys", "restore failed: " + e.message); }
+  };
   document.getElementById("showAll").onclick = () => { tabs.forEach(t=>t.visible=true); renderActive(); renderTabs(); };
   document.getElementById("hideAll").onclick = () => { tabs.forEach(t=>t.visible=false); renderActive(); renderTabs(); };
   document.getElementById("clearAll").onclick = () => {
@@ -992,6 +1294,7 @@
           if (!d.edges.some(e=>e.source===s&&e.target===t))
             d.edges.push({source:s,target:t,rel:rec.rel,data:{label:rec.rel}});
           renderActive(); populateRelDropdowns();
+          try{ commitSoon(tabs[activeTab], "recommend: " + rec.rel); }catch(_){}
           blerp(s); blerp(t);
           btn.closest("[data-card]").style.opacity=".4";
         };
@@ -1062,8 +1365,8 @@
       };
       const log = previewHi();
       box.innerHTML = previewBanner(countsOf(cls)) + `<div style="font-size:12px;margin-bottom:6px">AI suggests ${log.length} change(s) (highlighted on graph)<br/>
-        <button id="applyImprove" class="secondary" style="padding:4px 12px;border-color:#34d399;color:#34d399;font-weight:700">✓ Accept changes</button>
-        <button id="discardImprove" class="secondary" style="padding:4px 12px">✕ Reject</button></div>` +
+        <button id="applyImprove" class="secondary" style="padding:4px 12px;border-color:#34d399;color:#34d399;font-weight:700"><i class="fa-solid fa-check"></i> Accept changes</button>
+        <button id="discardImprove" class="secondary" style="padding:4px 12px"><i class="fa-solid fa-xmark"></i> Reject</button></div>` +
         log.map(l=>`<div style="font-size:11px;color:var(--dim)">• ${l}</div>`).join("");
       document.getElementById("discardImprove").onclick=()=>{ tabs[activeTab].data=JSON.parse(before); renderActive(); populateRelDropdowns(); box.innerHTML="Rejected — graph untouched."; aiTerm("sys","suggestion rejected (graph untouched)"); };
       document.getElementById("applyImprove").onclick=()=>{
@@ -1074,6 +1377,7 @@
         try { chainAdd({kind:"improve", prompt:(document.getElementById("improveInput").value||"AI improve").slice(0,300), summary:`${alog.length} op(s): `+alog.slice(0,3).join(" · "), touch:[...cls.addN, ...cls.modN].map(String).slice(0,25), before}); } catch(_){}
         // green confirm flash on everything the AI touched, then clean classes
         [...cls.addN, ...cls.modN].forEach(id=>{ const el=cy.getElementById(id); if(el.length){ el.addClass("flash-ok"); setTimeout(()=>el.removeClass("flash-ok"),1600); } });
+        try{ commitSoon(tabs[activeTab], "AI improve: " + alog.length + " ops"); }catch(_){}
         box.innerHTML=`Accepted ${alog.length} change(s) ✓ <span style="color:var(--dim)">(⟲ undo: Ctrl+←)</span> <button id="undoImprove" class="secondary" style="padding:2px 8px">Undo</button>`;
         document.getElementById("undoImprove").onclick=()=>{ doUndo(); };
         aiTerm("sys",`accepted ${alog.length} AI change(s)`);
@@ -1081,29 +1385,45 @@
     }catch(e){ box.innerHTML="Error: "+e.message; }
     btn.textContent="AI Improve";
   };
-  // unified physics debug config (accurate cose/boids options) + best default
-  // global graph text size (QoL): scales node + relation labels, persisted
-  let textScale = parseFloat(localStorage.getItem("osint_text") || "1") || 1;
-  const applyTextSize = () => {
-    try {
-      cy.style().selector("node").style({ "font-size": Math.round(11 * textScale), "text-margin-y": Math.round(8 * textScale) }).update();
-      cy.style().selector("edge").style({ "font-size": Math.max(7, Math.round(9 * textScale)) }).update();
-    } catch (_) {}
-    try { localStorage.setItem("osint_text", String(textScale)); } catch (_) {}
+  // ---- Type module: font size + label spacing (gap/width). One store, one apply. ----
+  const Type = {
+    state: Object.assign({ text: 1, gap: 8, wrap: 120 },
+      JSON.parse(localStorage.getItem("osint_type") || "{}")),
+    save() { try { localStorage.setItem("osint_type", JSON.stringify(this.state)); } catch (_) {} },
+    apply() {
+      const { text, gap, wrap } = this.state;
+      try {
+        cy.style().selector("node").style({
+          "font-size": Math.round(11 * text),
+          "text-margin-y": Math.round(gap * text),
+          "text-max-width": wrap + "px", "text-wrap": "wrap",
+        }).update();
+        cy.style().selector("edge").style({ "font-size": Math.max(7, Math.round(9 * text)) }).update();
+      } catch (_) {}
+      this.save();
+    },
   };
+  let textScale = Type.state.text; // legacy alias (save/load + svg export)
+  const applyTextSize = () => { textScale = Type.state.text; Type.apply(); };
   const cfgEl = (id)=>document.getElementById(id);
   const syncCfg = () => {
     cfgEl("cRep").value=phys.rep; cfgEl("vRep").textContent=phys.rep;
     cfgEl("cLen").value=phys.len; cfgEl("vLen").textContent=phys.len;
     cfgEl("cSep").value=phys.sep; cfgEl("vSep").textContent=phys.sep;
     cfgEl("cGrav").value=phys.grav; cfgEl("vGrav").textContent=phys.grav;
-    cfgEl("cTxt").value=textScale; cfgEl("vTxt").textContent=Math.round(textScale*100)+"%";
+    cfgEl("cTxt").value=Type.state.text; cfgEl("vTxt").textContent=Math.round(Type.state.text*100)+"%";
+    cfgEl("cGap").value=Type.state.gap; cfgEl("vGap").textContent=Type.state.gap+"px";
+    cfgEl("cWrap").value=Type.state.wrap; cfgEl("vWrap").textContent=Type.state.wrap+"px";
+    if (cfgEl("cAuto")) cfgEl("cAuto").checked = AutoViz.on;
   };
   ["cRep","cLen","cSep","cGrav"].forEach(id=>cfgEl(id).addEventListener("input",()=>{
     phys={rep:+cfgEl("cRep").value, len:+cfgEl("cLen").value, sep:+cfgEl("cSep").value, grav:+cfgEl("cGrav").value};
     syncCfg();
   }));
-  cfgEl("cTxt").addEventListener("input",()=>{ textScale=+cfgEl("cTxt").value || 1; syncCfg(); applyTextSize(); });
+  cfgEl("cTxt").addEventListener("input",()=>{ Type.state.text=+cfgEl("cTxt").value || 1; syncCfg(); applyTextSize(); });
+  cfgEl("cGap").addEventListener("input",()=>{ Type.state.gap=+cfgEl("cGap").value || 0; syncCfg(); applyTextSize(); });
+  cfgEl("cWrap").addEventListener("input",()=>{ Type.state.wrap=+cfgEl("cWrap").value || 120; syncCfg(); applyTextSize(); });
+  cfgEl("cAuto").onchange=(e)=>{ AutoViz.on=e.target.checked; AutoViz.save(); };
   cfgEl("cReset").onclick=()=>{ phys=Object.assign({},BEST); localStorage.setItem("osint_phys",JSON.stringify(phys)); syncCfg(); renderActive(); };
   cfgEl("cApply").onclick=()=>{ localStorage.setItem("osint_phys",JSON.stringify(phys)); save(); document.getElementById("settleBtn").click(); };
   cfgEl("graphCfgBtn").onclick=(e)=>{ e.stopPropagation(); const d=cfgEl("graphCfg"); d.open=!d.open; };
@@ -1154,14 +1474,23 @@
       const data = await r.json();
       const beforeGo = activeTab >= 0 ? JSON.stringify(tabs[activeTab].data) : null;
       pushHist();
-      render(data, text.slice(0,24));
+      const tab = render(data, text.slice(0,24));
       populateRelDropdowns();
       try { chainAdd({kind:"build", prompt:text.slice(0,300), summary:`+${(data.nodes||[]).length}n +${(data.edges||[]).length}e → ${tabs[activeTab].name}`, touch:(data.nodes||[]).map(n=>String(n.id??n.label)).slice(0,25), before:beforeGo}); } catch(_){}
-      // update url
-      const enc = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-      const url = new URL(window.location.href);
-      url.searchParams.set("graph", enc);
-      window.history.replaceState({}, "", url.toString());
+      // new graph id -> commit v1 -> capability url (?g=<uuid>)
+      try {
+        const c = await fetch(BACKEND + "/api/graph/commit", { method: "POST", headers: aiHeaders(),
+          body: JSON.stringify({ uuid: tab.uuid, name: tab.name, doc: graphDoc(tab), message: "build: " + text.slice(0, 120), username: npUser() }) });
+        const cj = await c.json();
+        if (cj.ok) tab.version = cj.version;
+      } catch (_) {}
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("graph");
+        url.searchParams.set("g", tab.uuid);
+        window.history.replaceState({}, "", url.toString());
+      } catch (_) {}
+      try { paintGraphMeta(); renderTabs(); } catch (_) {}
     } catch (e) {
       document.getElementById("flags").innerHTML = `<div class="flag">Backend error: ${e.message}. Start backend: python3 backend/server.py</div>`;
     } finally {
@@ -1217,6 +1546,7 @@
           }
         }
         renderActive(); populateRelDropdowns(); renderTabs();
+        try{ commitSoon(tabs[activeTab], `0shot: +${an}n +${ae}e`); }catch(_){}
         aiTerm("sys",`0shot edits applied faithfully: +${an} nodes +${ae} edges (as you described)`);
       } catch(err){ aiTerm("sys","0shot ops error: "+err.message); }
       return;
@@ -1246,13 +1576,144 @@
   const toggleBig = () => {
     const p = document.querySelector(".panel");
     const on = p.classList.toggle("big");
-    document.getElementById("zBig").textContent = on ? "✕" : "⛶";
+    document.getElementById("zBig").innerHTML = on ? '<i class="fa-solid fa-xmark"></i>' : '<i class="fa-solid fa-up-right-and-down-left-from-center"></i>';
     setTimeout(()=>{ try{ cy.resize(); cy.fit(40); }catch(e){} }, 50);
   };
   document.getElementById("zBig").onclick = toggleBig;
   document.getElementById("undoBtn").onclick = doUndo;
   document.getElementById("redoBtn").onclick = doRedo;
   paintHist();
+  // ---- in-graph flow tools: 4 hair dryers + press-and-hold equilibrium ----
+  // Blow (spread) / Gather (gravity well) / Grow / Shrink act on the selection,
+  // or the whole graph when nothing is selected. Hand-placed nodes resist.
+  const flowTargets = () => { const sn = cy.$("node:selected"); return sn.length ? sn : cy.nodes(); };
+  const flowCentroid = (els) => {
+    let cx = 0, cy0 = 0, n = 0;
+    els.forEach(x => { const p = x.position(); cx += p.x; cy0 += p.y; n++; });
+    return n ? { x: cx / n, y: cy0 / n } : { x: 0, y: 0 };
+  };
+  const flowShift = (fn, label) => {
+    const els = flowTargets();
+    if (!els.length) return;
+    try { setReflow(true, label); } catch (_) {}
+    try { cy.stop(); } catch (_) {}
+    els.forEach(n => {
+      if (n.locked()) return;
+      const w = (typeof Pos !== "undefined" && Pos.weight) ? Pos.weight(n.id()) : 0;
+      const t = fn(n.position(), w);
+      if (!t) return;
+      try { n.animation({ position: t, duration: 420, easing: "ease-out" }).play(); } catch (_) { n.position(t); }
+    });
+    setTimeout(() => { try { Pos.capture(); } catch (_) {} try { setReflow(false); } catch (_) {} }, 520);
+    aiTerm("sys", label + " (" + els.length + " node" + (els.length === 1 ? "" : "s") + ") — hand-placed nodes resist");
+  };
+  document.getElementById("flowBlow").onclick = () => {
+    const c = flowCentroid(flowTargets());
+    flowShift((p, w) => { const dx = p.x - c.x, dy = p.y - c.y, d = Math.hypot(dx, dy) || 1; const k = 0.42 * (1 - w * 0.9); const step = Math.min(420, 60 + d * k); return { x: p.x + (dx / d) * step, y: p.y + (dy / d) * step }; }, "blow apart");
+  };
+  document.getElementById("flowGather").onclick = () => {
+    const c = flowCentroid(flowTargets());
+    flowShift((p, w) => { const k = 0.42 * (1 - w * 0.9); return { x: p.x + (c.x - p.x) * k, y: p.y + (c.y - p.y) * k }; }, "gather");
+  };
+  const flowScale = (f, label) => {
+    const els = flowTargets();
+    if (!els.length) return;
+    pushHist();
+    cy.batch(() => els.forEach(n => {
+      const w0 = n.data("width") || 40, h0 = n.data("height") || w0;
+      const w1 = Math.min(130, Math.max(12, Math.round(w0 * f))), h1 = Math.min(130, Math.max(12, Math.round(h0 * f)));
+      n.data("width", w1); n.data("height", h1);
+    }));
+    try { save(); } catch (_) {}
+    aiTerm("sys", label + " (" + els.length + " nodes)");
+  };
+  document.getElementById("flowGrow").onclick = () => flowScale(1.35, "grow");
+  document.getElementById("flowShrink").onclick = () => flowScale(1 / 1.35, "shrink");
+  // press-and-hold equilibrium: while held, the graph slowly flows toward the
+  // current view's equilibrium (force = gentle continuous settle; tree/grid = slow morph).
+  const flowHold = { on: false, raf: 0, layout: null };
+  const flowStep = (alpha = 1) => {
+    const nodes = cy.nodes(), N = nodes.length;
+    if (!N) return;
+    const pos = new Map();
+    nodes.forEach(n => pos.set(n.id(), { ...n.position() }));
+    let cx = 0, cy0 = 0;
+    pos.forEach(p => { cx += p.x; cy0 += p.y; }); cx /= N; cy0 /= N;
+    const arr = nodes.toArray(), LIM = Math.min(N, 160), R = (typeof phys !== "undefined" ? phys.sep : 190);
+    for (let i = 0; i < LIM; i++) {
+      const a = arr[i], pa = pos.get(a.id());
+      for (let j = i + 1; j < LIM; j++) {
+        const b = arr[j], pb = pos.get(b.id());
+        const dx = pb.x - pa.x, dy = pb.y - pa.y, d2 = dx * dx + dy * dy;
+        if (d2 > R * R || d2 < 4) continue;
+        const d = Math.sqrt(d2), f = (1 - d / R) * 2.6 * alpha / (d + 8);
+        const wa = a.locked() ? 0 : 1 - Pos.weight(a.id()) * 0.92, wb = b.locked() ? 0 : 1 - Pos.weight(b.id()) * 0.92;
+        pa.x -= dx * f * wa; pa.y -= dy * f * wa; pb.x += dx * f * wb; pb.y += dy * f * wb;
+      }
+    }
+    const REST = (typeof phys !== "undefined" ? phys.len : 170);
+    try {
+      cy.edges().forEach(e => {
+        const pa = pos.get(e.source().id()), pb = pos.get(e.target().id());
+        if (!pa || !pb) return;
+        const dx = pb.x - pa.x, dy = pb.y - pa.y, d = Math.hypot(dx, dy) || 1;
+        const k = (d - REST) * 0.004 * alpha / d;
+        const a = e.source(), b = e.target();
+        const wa = a.locked() ? 0 : 1 - Pos.weight(a.id()) * 0.92, wb = b.locked() ? 0 : 1 - Pos.weight(b.id()) * 0.92;
+        pa.x += dx * k * wa; pa.y += dy * k * wa; pb.x -= dx * k * wb; pb.y -= dy * k * wb;
+      });
+    } catch (_) {}
+    try {
+      cy.batch(() => nodes.forEach(n => {
+        if (n.locked()) return;
+        const p = pos.get(n.id()), w = 1 - Pos.weight(n.id()) * 0.92;
+        p.x += (cx - p.x) * 0.004 * alpha * w; p.y += (cy0 - p.y) * 0.004 * alpha * w;
+        n.position(p);
+      }));
+    } catch (_) {}
+  };
+  const flowHoldStart = (e) => {
+    if (e) e.preventDefault();
+    if (flowHold.on || !cy.nodes().length) return;
+    flowHold.on = true;
+    const btn = document.getElementById("flowHold");
+    if (btn) btn.classList.add("holding");
+    try { setReflow(true, "holding — flowing to equilibrium (" + viewMode + ")"); } catch (_) {}
+    if (viewMode === "force") {
+      const tick = () => {
+        if (!flowHold.on) return;
+        flowStep(1);
+        flowHold.raf = requestAnimationFrame(tick);
+      };
+      flowHold.raf = requestAnimationFrame(tick);
+    } else {
+      try { cy.stop(); } catch (_) {}
+      flowHold.layout = cy.layout(Object.assign({}, fastLayout(cy.nodes().length), { animate: true, animationDuration: 2200, animationEasing: "ease-in-out" }));
+      try {
+        flowHold.layout.one("layoutstop", () => { try { Pos.capture(); } catch (_) {} if (!flowHold.on) { try { setReflow(false); } catch (_) {} } });
+      } catch (_) {}
+      try { flowHold.layout.run(); } catch (_) {}
+    }
+    aiTerm("sys", "flow hold: easing toward " + viewMode + " equilibrium — release to keep the result");
+  };
+  const flowHoldStop = () => {
+    if (!flowHold.on) return;
+    flowHold.on = false;
+    cancelAnimationFrame(flowHold.raf);
+    const btn = document.getElementById("flowHold");
+    if (btn) btn.classList.remove("holding");
+    if (flowHold.layout) { try { cy.stop(); } catch (_) {} flowHold.layout = null; }
+    try { Pos.capture(); } catch (_) {}
+    try { setReflow(false); } catch (_) {}
+    aiTerm("sys", "flow released — layout kept");
+  };
+  (() => {
+    const b = document.getElementById("flowHold");
+    if (!b) return;
+    b.addEventListener("pointerdown", flowHoldStart);
+    ["pointerup", "pointerleave", "pointercancel"].forEach(ev => b.addEventListener(ev, flowHoldStop));
+    document.addEventListener("pointerup", flowHoldStop);
+  })();
   document.addEventListener("keydown", (e)=>{
     if (e.target.matches("input,textarea,select")) return;
     if ((e.ctrlKey||e.metaKey) && e.key==="ArrowLeft") { e.preventDefault(); doUndo(); return; }
@@ -1271,9 +1732,12 @@
     if (activeTab < 0) return;
     // one-shot boids settle: separation/cohesion/alignment solved offline, eased snap-in
     try{ cy.stop(); }catch(e){}
-    if (viewMode === "force" && cy.nodes().length <= 400) boidsSettle();
-    else { cy.layout(fastLayout(cy.nodes().length)).run(); }
-    aiTerm("sys","settle: boids separation/cohesion/alignment ("+viewMode+" view)");
+    try{ setReflow(true, "settling"); }catch(_){}
+    let extra = "";
+    if (viewMode === "force" && cy.nodes().length <= 400) { const r = boidsSettle() || { rings: 0, crossings: 0 }; extra = ` (${r.rings} rings · ${r.crossings} crossings tidied)`; }
+    else { const l = cy.layout(fastLayout(cy.nodes().length)); l.one("layoutstop", ()=>{ Pos.capture(); try{ setReflow(false); }catch(_){} }); l.run(); }
+    setTimeout(()=>{ Pos.capture(); try{ setReflow(false); }catch(_){} }, 1100); // boids animates via rAF — capture the settled spots
+    aiTerm("sys",`settle: boids separation/cohesion/alignment (${viewMode} view)${extra}`);
   };
   // merge whole graph file into the ACTIVE tab (ids deduped)
   const mergeInput=document.createElement("input");
@@ -1294,6 +1758,7 @@
       const es=new Set(d.edges.map(e=>e.source+">"+e.target));
       for(const e of (g.edges||[])){ const k=e.source+">"+e.target; if(ids.has(e.source)&&ids.has(e.target)&&!es.has(k)){ d.edges.push(e); es.add(k); ae++; } }
       renderActive(); populateRelDropdowns();
+      try{ commitSoon(tabs[activeTab], `merge ${f.name}: +${an}n +${ae}e`); }catch(_){}
       aiTerm("sys",`merged ${f.name}: +${an} nodes +${ae} edges`);
     }catch(err){ alert("Invalid JSON: "+err.message); }
     mergeInput.value="";
@@ -1379,8 +1844,8 @@
           <span style="flex:1;background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.4);border-radius:8px;padding:6px">◧ Standardizer: <b>${stdN}</b> op(s)</span>
           <span style="flex:1;background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.4);border-radius:8px;padding:6px">◨ Visionary: <b>${visN}</b> op(s)</span>
         </div>` + log.slice(0, 12).map(l => `<div style="font-size:11px;color:var(--dim)">• ${escH(l)}</div>`).join("") +
-        `<div style="font-size:11px;color:var(--dim);margin-top:4px">👁 preview live on graph — hit ✓ Accept in the Duel card (or Reject below)</div>
-         <button id="duelReject" class="secondary" style="padding:4px 12px">✕ Reject</button>`;
+        `<div style="font-size:11px;color:var(--dim);margin-top:4px">preview live on graph — hit Accept in the Duel card (or Reject below)</div>
+         <button id="duelReject" class="secondary" style="padding:4px 12px"><i class="fa-solid fa-xmark"></i> Reject</button>`;
       document.getElementById("duelAccept").style.display = "";
       document.getElementById("duelReject").onclick = () => {
         tabs[activeTab].data = JSON.parse(duelBefore); renderActive(); populateRelDropdowns();
@@ -1402,37 +1867,166 @@
     paintDuel(winner === "std" ? "rgba(52,211,153,.5)" : winner === "vis" ? "rgba(167,139,250,.5)" : "rgba(255,255,255,.15)");
     flashIds(full.nodes.slice(-6).map(n => n.id));
     try { chainAdd({ kind: "duel", prompt: ("duel ◧" + stdN + " vs ◨" + visN + (duelTa.value ? " — " + duelTa.value : "")).slice(0, 300), summary: `${alog.length} ops, winner: ${winner || "draw"}`, touch: full.nodes.slice(-8).map(n => String(n.id)), before: duelBefore }); } catch (_) {}
-    document.getElementById("recs").innerHTML = `🏆 ${winner === "std" ? "◧ Standardizer wins the round!" : winner === "vis" ? "◨ Visionary wins the round!" : "🤝 Draw!"} <span style="color:var(--dim)">(${alog.length} ops · ◧${duelScore.std}:${duelScore.vis}◨)</span>`;
-    aiTerm("sys", `duel accepted: ${alog.length} ops, winner ${winner || "draw"} (◧${duelScore.std}:${duelScore.vis}◨)`);
+    document.getElementById("recs").innerHTML = `<i class="fa-solid fa-trophy"></i> ${winner === "std" ? "Standardizer wins the round!" : winner === "vis" ? "Visionary wins the round!" : "Draw!"} <span style="color:var(--dim)">(${alog.length} ops · ${duelScore.std}:${duelScore.vis})</span>`;
+    aiTerm("sys", `duel accepted: ${alog.length} ops, winner ${winner || "draw"} (${duelScore.std}:${duelScore.vis})`);
     duelPending = null; document.getElementById("duelAccept").style.display = "none";
   };
-  // ---- node page: living page + context chat per node (split view, SpacetimeDB-backed) ----
-  // Each node is half pain of view: graph left, page right. Chat accumulates context;
-  // page is refined from it over time. sqlite now, dual-written to SpacetimeDB.
-  let pageNode = null;
+  // ---- node page: living wiki-page per CONCEPT (same word => same shared page) ----
+  // Node ids (n0, n1…) are per-graph and unstable; the page key is the normalized
+  // label ("concept:<word>"), shared across graphs/users, Wikipedia-seeded.
+  let pageNode = null, pageLabel = "";
   const npUser = () => document.getElementById("username").value.trim() || localStorage.getItem("osint_user") || "";
+  const npCanon = (label, id) => { const b=String(label||id||"").trim().toLowerCase().replace(/\s+/g," "); return b?("concept:"+b):id; };
+  // ---- tiny markdown renderer (no dependency) + [[wiki-links]] ----
+  const md = (src) => {
+    let h = escH(src || "");
+    h = h.replace(/```([\s\S]*?)```/g, (m, c) => "<pre><code>" + c + "</code></pre>");
+    h = h.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+    h = h.replace(/^######\s?(.*)$/gm, "<h6>$1</h6>").replace(/^#####\s?(.*)$/gm, "<h5>$1</h5>")
+      .replace(/^####\s?(.*)$/gm, "<h4>$1</h4>").replace(/^###\s?(.*)$/gm, "<h3>$1</h3>")
+      .replace(/^##\s?(.*)$/gm, "<h2>$1</h2>").replace(/^#\s?(.*)$/gm, "<h1>$1</h1>");
+    h = h.replace(/\*\*([^\*\n]+)\*\*/g, "<b>$1</b>").replace(/(^|\W)\*([^\*\n]+)\*(?=\W|$)/g, "$1<i>$2</i>");
+    h = h.replace(/\[\[([^\]|\]]+)\]\]/g, (m, t) => `<a class="wikilink" data-wiki="${t.trim()}">${t.trim()}</a>`);
+    h = h.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a class="ext" href="$2" target="_blank" rel="noopener">$1</a>');
+    h = h.replace(/^&gt;\s?(.*)$/gm, "<blockquote>$1</blockquote>");
+    h = h.replace(/^\s*---\s*$/gm, "<hr/>");
+    const lines = h.split("\n"), out = [];
+    let list = null;
+    const close = () => { if (list) { out.push(list === "ul" ? "</ul>" : "</ol>"); list = null; } };
+    for (const ln of lines) {
+      const um = ln.match(/^\s*[-*]\s+(.*)/), om = ln.match(/^\s*\d+[.)]\s+(.*)/);
+      if (um) { if (list !== "ul") { close(); out.push("<ul>"); list = "ul"; } out.push("<li>" + um[1] + "</li>"); }
+      else if (om) { if (list !== "ol") { close(); out.push("<ol>"); list = "ol"; } out.push("<li>" + om[1] + "</li>"); }
+      else { close(); out.push(/^<(h\d|pre|blockquote|hr|ul|ol)/.test(ln.trim()) || !ln.trim() ? ln : "<p>" + ln + "</p>"); }
+    }
+    close();
+    return out.join("\n").replace(/<\/blockquote>\n<blockquote>/g, "<br/>");
+  };
+  // view / edit modes for the living page
+  let npMode = "view";
+  const npSetMode = (m) => {
+    npMode = m;
+    const v = m === "view";
+    document.getElementById("npView").style.display = v ? "block" : "none";
+    document.getElementById("npEditWrap").style.display = v ? "none" : "flex";
+    const mv = document.getElementById("npModeView"), me = document.getElementById("npModeEdit");
+    mv.classList.toggle("on", v);
+    mv.style.cssText = v ? "border:none;background:linear-gradient(135deg,#0284c7,#7c3aed);color:#fff;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer" : "border:none;background:transparent;color:var(--text);padding:6px 12px;font-size:12px;cursor:pointer";
+    me.classList.toggle("on", !v);
+    me.style.cssText = !v ? "border:none;background:linear-gradient(135deg,#0284c7,#7c3aed);color:#fff;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer" : "border:none;background:transparent;color:var(--text);padding:6px 12px;font-size:12px;cursor:pointer";
+    if (v) paintNpView();
+  };
+  const paintNpView = () => {
+    const title = document.getElementById("npName").value || pageLabel || "Untitled";
+    const kind = document.getElementById("npKind").value || "";
+    const body = document.getElementById("npBody").value || "*No notes yet — switch to Edit and write something, or Refine with AI.*";
+    document.getElementById("npView").innerHTML = `<h1 style="margin-top:0">${escH(title)}</h1>` + (kind ? `<div style="font-size:11px;color:var(--dim);margin:-6px 0 6px">${escH(kind)}</div>` : "") + md(body);
+    document.getElementById("npView").querySelectorAll("[data-wiki]").forEach(a => a.onclick = () => openConcept(a.dataset.wiki));
+  };
+  // neighbor concepts of the open page (graph relations = page links)
+  const npNeighbors = () => {
+    if (activeTab < 0 || !pageNode) return [];
+    const d = tabs[activeTab].data, out = [], seen = new Set();
+    for (const e of (d.edges || [])) {
+      let other = null, rel = e.rel || "related";
+      if (e.source === pageNode) other = e.target;
+      else if (e.target === pageNode) other = e.source;
+      if (!other || seen.has(other)) continue;
+      seen.add(other);
+      const n = (d.nodes || []).find(x => x.id === other);
+      out.push({ id: other, label: (n && n.label) || other, rel });
+    }
+    return out;
+  };
+  // fetch linked pages' excerpts so generation has real context
+  const npLinkPages = async (cap = 6, chars = 600) => {
+    const out = [];
+    for (const nb of npNeighbors().slice(0, cap)) {
+      try {
+        const r = await fetch(BACKEND + "/api/node-page?node=" + encodeURIComponent(nb.id) + "&label=" + encodeURIComponent(nb.label) + "&user=" + encodeURIComponent(npUser()));
+        const p = await r.json();
+        if ((p.body || "").trim()) out.push({ label: nb.label, rel: nb.rel, body: p.body.slice(0, chars) });
+        else out.push({ label: nb.label, rel: nb.rel, body: "" });
+      } catch (_) { out.push({ label: nb.label, rel: nb.rel, body: "" }); }
+    }
+    return out;
+  };
+  const npLinksText = (links) => links.length
+    ? "Linked pages (use [[Page Name]] wiki-links when you reference them):\n" + links.map(l => `[[${l.label}]] (via ${l.rel})${l.body ? ": " + l.body.replace(/\n/g, " ") : " (page empty)"}`).join("\n")
+    : "No linked pages yet.";
+  const paintNpLinks = () => {
+    const nbs = npNeighbors();
+    document.getElementById("npLinks").innerHTML = nbs.length
+      ? `<span style="text-transform:uppercase;font-size:10px;letter-spacing:.06em">Links</span><br/>` + nbs.map(n => `<span class="np-chip" data-nb="${escH(n.label)}" title="via ${escH(n.rel)}"><i class="fa-solid fa-link"></i> ${escH(n.label)}</span>`).join("")
+      : `<span style="font-size:11px">No linked pages — slingshot a link from this node to connect concepts.</span>`;
+    document.getElementById("npLinks").querySelectorAll("[data-nb]").forEach(c => c.onclick = () => openConcept(c.dataset.nb));
+  };
+  const paintNpShots = () => {
+    document.getElementById("npShots").innerHTML = hotPrompts.map((h, i) => `<button class="np-act" data-nshot="${i}" title="${escH(h.text).slice(0, 160)}"><i class="fa-solid ${h.icon || "fa-bolt"}"></i> ${escH(h.title)}</button>`).join("");
+    document.getElementById("npShots").querySelectorAll("[data-nshot]").forEach(b => b.onclick = () => npShot(Number(b.dataset.nshot)));
+  };
+  const npShot = (i) => {
+    const h = hotPrompts[i] || HOT_DEFAULTS[i];
+    const ctx = npNeighbors().map(n => `${n.label} (${n.rel})`).join("; ");
+    const q = `${h.text}\n\n[page: ${pageLabel}${ctx ? "\n[linked: " + ctx + "]" : ""}]`;
+    try {
+      const sel = pageNode ? [{ id: pageNode, label: pageLabel, kind: "" }] : [];
+      localStorage.setItem("osint_0shot_handoff", JSON.stringify({ focus: { kind: "page", label: pageLabel, nodes: sel }, edges: [], subEdges: [], prompt: h.text, at: Date.now() }));
+    } catch (_) {}
+    aiTerm("sys", `0shot handoff from page ${pageLabel}: ${h.title}`);
+    window.open("0shot.html?q=" + encodeURIComponent(q) + "&format=answer&from=graph", "_blank");
+  };
+  // open a concept by label (wiki-style): finds the node anywhere, else opens the shared page directly
+  const openConcept = async (label) => {
+    const t = String(label || "").trim();
+    if (!t) return;
+    for (let ti = 0; ti < tabs.length; ti++) {
+      const f = (tabs[ti].data.nodes || []).find(x => String(x.label || "").toLowerCase() === t.toLowerCase());
+      if (f) { activeTab = ti; renderActive(); populateRelDropdowns(); renderTabs(); openNodePage(f.id, "page"); return; }
+    }
+    pageNode = npCanon(t, t); pageLabel = t;
+    document.getElementById("nodePage").classList.add("open");
+    document.getElementById("npTitle").textContent = t;
+    document.getElementById("npSub").textContent = `Concept · wiki ${npCanon(t, t)} · shared`;
+    switchNpTab("page");
+    document.getElementById("npSaved").textContent = "loading…";
+    try {
+      const r = await fetch(BACKEND + "/api/node-page?node=" + encodeURIComponent(pageNode) + "&label=" + encodeURIComponent(t) + "&user=" + encodeURIComponent(npUser()));
+      const p = await r.json();
+      document.getElementById("npName").value = p.title || t;
+      document.getElementById("npKind").value = p.kind || "";
+      if (!document.getElementById("npBody").dataset.dirty || !document.getElementById("npBody").value) document.getElementById("npBody").value = p.body || "";
+      document.getElementById("npBody").dataset.dirty = "";
+      paintNpView(); npSetMode(p.updated ? "view" : "edit");
+      document.getElementById("npSaved").textContent = (p.updated ? ("saved " + new Date(p.updated * 1000).toLocaleString()) : "new page — write + save") + " · shared wiki" + (p.seeded ? " · seeded from Wikipedia" : "");
+    } catch (e) { document.getElementById("npSaved").textContent = "offline — will save on reconnect"; }
+    paintNpLinks(); paintNpShots(); loadNodeChat();
+  };
   const openNodePage = async (id, tab = null) => {
     if (activeTab < 0) return;
     const d = tabs[activeTab].data;
     const n = d.nodes.find(x => x.id === id);
     if (!n) return;
-    pageNode = id;
+    pageNode = id; pageLabel = n.label || id;
     document.getElementById("nodePage").classList.add("open");
-    document.getElementById("npTitle").textContent = "📄 " + (n.label || id);
-    document.getElementById("npSub").textContent = `${n.kind || "Concept"} · id ${id} · saved per user`;
+    document.getElementById("npTitle").textContent = (n.label || id);
+    document.getElementById("npSub").textContent = `${n.kind || "Concept"} · wiki ${npCanon(pageLabel, id)} · shared`;
     if (tab) switchNpTab(tab);
     document.getElementById("npSaved").textContent = "loading…";
     try {
-      const r = await fetch(BACKEND + "/api/node-page?node=" + encodeURIComponent(id) + "&user=" + encodeURIComponent(npUser()));
+      const r = await fetch(BACKEND + "/api/node-page?node=" + encodeURIComponent(id) + "&label=" + encodeURIComponent(pageLabel) + "&user=" + encodeURIComponent(npUser()));
       const p = await r.json();
       document.getElementById("npName").value = p.title || n.label || "";
       document.getElementById("npKind").value = p.kind || n.kind || "";
       if (!document.getElementById("npBody").dataset.dirty || !document.getElementById("npBody").value)
         document.getElementById("npBody").value = p.body || "";
       document.getElementById("npBody").dataset.dirty = "";
-      document.getElementById("npSaved").textContent = p.updated ? ("saved ✓ " + new Date(p.updated * 1000).toLocaleString()) : "new page — write + save";
+      paintNpView(); npSetMode(p.updated ? "view" : "edit");
+      const seedTag = p.seeded ? ` · seeded from Wikipedia` : "";
+      const shareTag = (p.shared === false) ? " · personal copy" : " · shared wiki";
+      document.getElementById("npSaved").textContent = (p.updated ? ("saved " + new Date(p.updated * 1000).toLocaleString()) : "new page — write + save") + shareTag + seedTag;
     } catch (e) { document.getElementById("npSaved").textContent = "offline — will save on reconnect"; }
-    loadNodeChat();
+    paintNpLinks(); paintNpShots(); loadNodeChat();
   };
   const switchNpTab = (tab) => {
     const chat = tab === "chat";
@@ -1444,29 +2038,98 @@
   document.getElementById("npTabPage").onclick = () => switchNpTab("page");
   document.getElementById("npTabChat").onclick = () => switchNpTab("chat");
   document.getElementById("npClose").onclick = () => { document.getElementById("nodePage").classList.remove("open"); pageNode = null; };
+  document.getElementById("npModeView").onclick = () => npSetMode("view");
+  document.getElementById("npModeEdit").onclick = () => npSetMode("edit");
   document.getElementById("npBody").oninput = (e) => { e.target.dataset.dirty = "1"; document.getElementById("npSaved").textContent = "editing… (unsaved)"; };
+  document.getElementById("npRename").onclick = () => {
+    if (activeTab < 0 || !pageNode) return;
+    const d = tabs[activeTab].data, node = d.nodes.find(x => x.id === pageNode);
+    if (!node) return;
+    const v = prompt("Rename node:", node.label);
+    if (!v || v === node.label) return;
+    pushHist(); node.label = v; pageLabel = v;
+    document.getElementById("npTitle").textContent = v;
+    document.getElementById("npName").value = v;
+    renderActive(); populateRelDropdowns(); paintNpLinks();
+    try{ commitSoon(tabs[activeTab], "rename node"); }catch(_){}
+    aiTerm("sys", "renamed node to " + v + " (page follows the new label)");
+  };
+  document.getElementById("npDup").onclick = () => {
+    if (activeTab < 0 || !pageNode) return;
+    const d = tabs[activeTab].data, node = d.nodes.find(x => x.id === pageNode);
+    if (!node) return;
+    pushHist();
+    const c = JSON.parse(JSON.stringify(node));
+    c.id = node.id + "_copy" + String(Date.now() % 10000); c.label = node.label + " (copy)";
+    d.nodes.push(c); renderActive(); populateRelDropdowns();
+    try{ commitSoon(tabs[activeTab], "duplicate node"); }catch(_){}
+    aiTerm("sys", "duplicated " + node.label);
+  };
+  document.getElementById("npDel").onclick = () => {
+    if (activeTab < 0 || !pageNode) return;
+    if (!confirm("Delete node " + pageLabel + " from this layer?")) return;
+    pushHist();
+    const d = tabs[activeTab].data;
+    d.nodes = d.nodes.filter(x => x.id !== pageNode);
+    d.edges = d.edges.filter(x => x.source !== pageNode && x.target !== pageNode);
+    document.getElementById("nodePage").classList.remove("open"); pageNode = null;
+    renderActive(); populateRelDropdowns();
+  };
+  document.getElementById("npHist").onclick = async () => {
+    if (!pageNode) return;
+    const box = document.getElementById("npHistList");
+    const open = box.style.display !== "none";
+    if (open) { box.style.display = "none"; return; }
+    box.style.display = "flex";
+    box.innerHTML = `<div style="font-size:11px;color:var(--dim)">loading history…</div>`;
+    try {
+      const r = await fetch(BACKEND + "/api/node-page/versions?node=" + encodeURIComponent(pageNode) + "&label=" + encodeURIComponent(pageLabel) + "&user=" + encodeURIComponent(npUser()));
+      const j = await r.json();
+      const vs = j.versions || [];
+      box.innerHTML = vs.length ? vs.map(v => `<div style="display:flex;align-items:center;gap:6px;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:11px">
+        <b>v${v.version}</b><span style="flex:1;color:var(--dim)">${new Date(v.created * 1000).toLocaleString()} · ${escH(v.message || "edit").slice(0, 50)}</span>
+        <button data-prestore="${v.version}" style="background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.4);color:#7dd3fc;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11px">restore</button></div>`).join("")
+        : `<div style="font-size:11px;color:var(--dim)">no versions yet — they land here on every save.</div>`;
+      box.querySelectorAll("[data-prestore]").forEach(btn => btn.onclick = () => npRestoreVersion(Number(btn.dataset.prestore)));
+    } catch (e) { box.innerHTML = `<div style="font-size:11px;color:var(--dim)">history offline</div>`; }
+  };
+  const npRestoreVersion = async (v) => {
+    try {
+      const r = await fetch(BACKEND + "/api/node-page/version?node=" + encodeURIComponent(pageNode) + "&label=" + encodeURIComponent(pageLabel) + "&user=" + encodeURIComponent(npUser()) + "&v=" + v);
+      const j = await r.json();
+      if (!j.ok) return;
+      document.getElementById("npName").value = j.title || "";
+      document.getElementById("npKind").value = j.kind || "";
+      document.getElementById("npBody").value = j.body || "";
+      document.getElementById("npBody").dataset.dirty = "1";
+      paintNpView(); npSetMode("view");
+      document.getElementById("npSaved").textContent = "restored v" + v + " — review + save to commit as new version";
+      aiTerm("sys", `page restored to v${v} (save to commit as new version)`);
+    } catch (e) { aiTerm("sys", "page restore failed: " + e.message); }
+  };
   document.getElementById("npSave").onclick = async () => {
     if (!pageNode) return;
     const btn = document.getElementById("npSave");
-    btn.textContent = "saving…";
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> saving…';
     try {
       const r = await fetch(BACKEND + "/api/node-page", { method: "POST", headers: aiHeaders(),
-        body: JSON.stringify({ node: pageNode, username: npUser(), title: document.getElementById("npName").value, kind: document.getElementById("npKind").value, body: document.getElementById("npBody").value }) });
+        body: JSON.stringify({ node: pageNode, label: pageLabel, shared: true, username: npUser(), title: document.getElementById("npName").value, kind: document.getElementById("npKind").value, body: document.getElementById("npBody").value, message: "edit" }) });
       const p = await r.json();
       document.getElementById("npBody").dataset.dirty = "";
-      document.getElementById("npSaved").textContent = "saved ✓ " + new Date().toLocaleTimeString() + " → SpacetimeDB";
-      aiTerm("sys", `page saved: ${pageNode} (${(p.body || "").length} chars)`);
+      paintNpView(); npSetMode("view");
+      document.getElementById("npSaved").textContent = "saved " + new Date().toLocaleTimeString() + " → shared wiki " + (p.shared_key || npCanon(pageLabel, pageNode));
+      aiTerm("sys", `page saved: ${pageNode} → ${p.shared_key || ""} (${(p.body || "").length} chars, shared)`);
     } catch (e) { document.getElementById("npSaved").textContent = "save failed: " + e.message; }
-    btn.textContent = "✓ Save page";
+    btn.innerHTML = '<i class="fa-solid fa-check"></i> Save page';
   };
   const loadNodeChat = async () => {
     if (!pageNode) return;
     const box = document.getElementById("npMsgs");
     try {
-      const r = await fetch(BACKEND + "/api/node-chat?node=" + encodeURIComponent(pageNode) + "&user=" + encodeURIComponent(npUser()) + "&limit=200");
+      const r = await fetch(BACKEND + "/api/node-chat?node=" + encodeURIComponent(pageNode) + "&label=" + encodeURIComponent(pageLabel) + "&user=" + encodeURIComponent(npUser()) + "&limit=200");
       const j = await r.json();
       const msgs = j.msgs || [];
-      box.innerHTML = msgs.length ? msgs.map(m => `<div class="m ${m.role}"><div class="t">${m.role === "user" ? "you" : "ai"} · ${new Date(m.created * 1000).toLocaleTimeString()}</div>${escH(m.text)}</div>`).join("") : `<div style="color:var(--dim);font-size:12px">No context yet — ask something below. Every message is saved to this node's thread.</div>`;
+      box.innerHTML = msgs.length ? msgs.map(m => `<div class="m ${m.role}"><div class="t">${m.role === "user" ? "you" : "ai"} · ${new Date(m.created * 1000).toLocaleTimeString()}</div>${escH(m.text)}</div>`).join("") : `<div style="color:var(--dim);font-size:12px">No context yet — ask something below. Every message is saved to this concept's shared thread (${escH(npCanon(pageLabel, pageNode))}).</div>`;
       box.scrollTop = box.scrollHeight;
     } catch (e) { box.innerHTML = `<div style="color:var(--dim);font-size:12px">chat offline</div>`; }
   };
@@ -1480,48 +2143,89 @@
     box.innerHTML += `<div class="m user"><div class="t">you · now</div>${escH(text)}</div>`;
     box.scrollTop = box.scrollHeight;
     try {
-      await fetch(BACKEND + "/api/node-chat", { method: "POST", headers: aiHeaders(), body: JSON.stringify({ node: pageNode, username: npUser(), role: "user", text }) });
-      // AI answers with the page + thread as context, then refines the page draft
-      const d = tabs[activeTab].data;
-      const n = d.nodes.find(x => x.id === pageNode);
-      const nb = n ? d.edges.filter(e => e.source === pageNode || e.target === pageNode).map(e => `${e.source} —${e.rel}→ ${e.target}`).join("; ") : "";
+      await fetch(BACKEND + "/api/node-chat", { method: "POST", headers: aiHeaders(), body: JSON.stringify({ node: pageNode, label: pageLabel, username: npUser(), role: "user", text }) });
+      // AI answers with the page + linked pages + thread as context
+      const d = activeTab >= 0 ? tabs[activeTab].data : { nodes: [], edges: [] };
+      const n = (d.nodes || []).find(x => x.id === pageNode);
+      const nb = activeTab >= 0 ? (d.edges || []).filter(e => e.source === pageNode || e.target === pageNode).map(e => `${e.source} —${e.rel}→ ${e.target}`).join("; ") : "";
       const page = document.getElementById("npBody").value || "";
-      const r = await fetch(BACKEND + "/zero", { method: "POST", headers: aiHeaders(), body: JSON.stringify({ q: `Node under discussion: "${n ? n.label : pageNode}" (${n ? n.kind : ""}). Relations: ${nb || "none"}. Current page draft: ${page.slice(0, 2000) || "(empty)"}. User says: ${text}. Answer conversationally AND end with a refined page draft idea if the page is thin.`, ctx: "node-page chat" }) });
+      const links = await npLinkPages();
+      const r = await fetch(BACKEND + "/zero", { method: "POST", headers: aiHeaders(), body: JSON.stringify({ q: `Node under discussion: "${(n && n.label) || pageLabel || pageNode}" (${(n && n.kind) || ""}). Relations: ${nb || "none"}.\n${npLinksText(links)}\nCurrent page draft: ${page.slice(0, 2000) || "(empty)"}. User says: ${text}. Answer conversationally AND end with a refined page draft idea if the page is thin. When you mention a linked concept, write it as a [[Wiki Link]].`, ctx: "node-page chat" }) });
       const j = await r.json();
-      const ans = (j.text || "").trim() || "(no answer — check AI key)";
-      await fetch(BACKEND + "/api/node-chat", { method: "POST", headers: aiHeaders(), body: JSON.stringify({ node: pageNode, username: npUser(), role: "assistant", text: ans.slice(0, 4000) }) });
-      aiTerm("sys", `page chat: +2 msgs on ${pageNode}`);
+      const chk = zeroUsable(j);
+      if (chk.ok) {
+        await fetch(BACKEND + "/api/node-chat", { method: "POST", headers: aiHeaders(), body: JSON.stringify({ node: pageNode, label: pageLabel, username: npUser(), role: "assistant", text: chk.text.slice(0, 4000) }) });
+        aiTerm("sys", `page chat: +2 msgs on ${pageNode}`);
+      } else {
+        box.innerHTML += `<div class="m assistant"><div class="t">ai · now</div>${escH("…ran out of time: " + chk.why)}</div>`;
+        box.scrollTop = box.scrollHeight;
+        aiTerm("sys", "page chat: assistant timed out — user msg kept, nothing persisted as answer (" + chk.why.slice(0, 160) + ")");
+      }
     } catch (e) { aiTerm("sys", "page chat error: " + e.message); }
     loadNodeChat();
   };
   document.getElementById("npSend").onclick = sendNodeChat;
   document.getElementById("npInput").addEventListener("keydown", (e) => { if (e.key === "Enter") sendNodeChat(); });
+  // /zero can return a timeout placeholder instead of an answer — never save that into a page/chat
+  const zeroUsable = (j) => {
+    const t = ((j && j.text) || "").trim();
+    if (!t) return { ok: false, why: (j && j.error) || "empty answer" };
+    if (t.startsWith("(paused") || t.startsWith("ERROR:"))
+      return { ok: false, why: t.slice(0, 220), timed_out: !!(j && j.timed_out), history: (j && j.history) || null };
+    return { ok: true, text: t };
+  };
   document.getElementById("npRefine").onclick = async () => {
     if (!pageNode) return;
     const btn = document.getElementById("npRefine");
-    btn.textContent = "refining…";
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> refining…';
     try {
-      const cr = await fetch(BACKEND + "/api/node-chat?node=" + encodeURIComponent(pageNode) + "&user=" + encodeURIComponent(npUser()) + "&limit=200");
+      const cr = await fetch(BACKEND + "/api/node-chat?node=" + encodeURIComponent(pageNode) + "&label=" + encodeURIComponent(pageLabel) + "&user=" + encodeURIComponent(npUser()) + "&limit=200");
       const cj = await cr.json();
       const thread = (cj.msgs || []).map(m => `${m.role}: ${m.text}`).join("\n").slice(0, 6000);
-      const d = tabs[activeTab].data;
-      const n = d.nodes.find(x => x.id === pageNode);
-      const r = await fetch(BACKEND + "/zero", { method: "POST", headers: aiHeaders(), body: JSON.stringify({ q: `Rewrite and improve the living page for node "${n ? n.label : pageNode}" (${n ? n.kind : ""}). Full chat thread:\n${thread || "(no chat yet)"}\n\nReply with ONLY the improved page body (markdown, no preamble).`, ctx: "node-page refine" }) });
+      const d = activeTab >= 0 ? tabs[activeTab].data : { nodes: [], edges: [] };
+      const n = (d.nodes || []).find(x => x.id === pageNode);
+      const links = await npLinkPages();
+      const r = await fetch(BACKEND + "/zero", { method: "POST", headers: aiHeaders(), body: JSON.stringify({ q: `Rewrite and improve the living page for "${(n && n.label) || pageLabel || pageNode}" (${(n && n.kind) || ""}).\n${npLinksText(links)}\nFull chat thread:\n${thread || "(no chat yet)"}\n\nReply with ONLY the improved page body as markdown (headings, bullets, no preamble). Reference related concepts with [[Wiki Links]] where natural.`, ctx: "node-page refine", tools: "none" }) });
       const j = await r.json();
-      if ((j.text || "").trim()) {
-        document.getElementById("npBody").value = j.text.trim().slice(0, 20000);
+      const chk = zeroUsable(j);
+      if (chk.ok) {
+        document.getElementById("npBody").value = chk.text.slice(0, 20000);
         document.getElementById("npBody").dataset.dirty = "1";
-        document.getElementById("npSaved").textContent = "refined by AI — review + save ✓";
+        paintNpView(); npSetMode("view");
+        document.getElementById("npSaved").textContent = "refined by AI — review + save";
         aiTerm("sys", `page refined: ${pageNode} (review + save)`);
+      } else {
+        document.getElementById("npSaved").textContent = "refine failed: " + chk.why.slice(0, 120);
+        aiTerm("sys", "refine failed (" + chk.why.slice(0, 200) + ") — nothing written to the page; retry or Edit manually");
       }
     } catch (e) { aiTerm("sys", "refine error: " + e.message); }
-    btn.textContent = "✨ Refine with AI";
+    btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Refine with AI';
   };
   // sidebar node rows click → open page (graph stays left, page opens right)
   document.getElementById("nodes").addEventListener("click", (e) => {
     const row = e.target.closest("[data-node]");
     if (row) openNodePage(row.dataset.node, "page");
   });
+  // Offline sqlite snapshot (graph as the user sees it: visible layers + pages + chat)
+  document.getElementById("dbBtn").onclick = async () => {
+    if (activeTab < 0) { aiTerm("sys", "nothing to snapshot — build a graph first"); return; }
+    const t = tabs[activeTab];
+    aiTerm("sys", "building offline snapshot…");
+    try {
+      const r = await fetch(BACKEND + "/api/export/offline", { method: "POST", headers: aiHeaders(),
+        body: JSON.stringify({ uuid: t.uuid, name: t.name, doc: graphDoc(t) }) });
+      if (!r.ok) throw new Error("export failed (" + r.status + ")");
+      const blob = await r.blob();
+      const cd = r.headers.get("Content-Disposition") || "";
+      const m = cd.match(/filename="([^"]+)"/);
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = (m && m[1]) || ("graph-" + String(t.uuid || "x").slice(0, 8) + ".db");
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      aiTerm("sys", "offline snapshot saved: " + a.download + " (open with any sqlite browser)");
+    } catch (e) { aiTerm("sys", "offline export failed: " + e.message); }
+  };
   // PNG export (cytoscape render)
   document.getElementById("pngBtn").onclick = () => {
     if (activeTab < 0) return;
@@ -1545,17 +2249,17 @@
     a.href=URL.createObjectURL(new Blob([svg],{type:"image/svg+xml"})); a.download=(tabs[activeTab].name||"graph")+".svg"; a.click();
     setTimeout(()=>URL.revokeObjectURL(a.href),5000);
   };
-  // ---- path picking: click 🛤 then A then B, or right-click A anchor → right-click B path ----
+  // ---- path picking: toolbar route button then click A then B ----
   let pathAnchor = null, pathMode = false;
   let pathEls = cy.collection(); // highlighted path (nodes+edges)
   const paintHint = () => {
     const h = document.getElementById("graphHint"); if(!h) return;
     const sel = cy.$("node:selected").length, pe = cy.$("edge:selected").length;
     if (pathMode) h.innerHTML = pathAnchor
-      ? `🛤 path mode: anchor <b>${pathAnchor}</b> — now <span class="on">click target node B</span> (or Esc to cancel)`
-      : `🛤 path mode: <span class="on">click start node A</span> (or Esc to cancel)`;
+      ? `path mode: anchor <b>${pathAnchor}</b> — now <span class="on">click target node B</span> (or Esc to cancel)`
+      : `path mode: <span class="on">click start node A</span> (or Esc to cancel)`;
     else if (pathAnchor) h.innerHTML = `anchor <b>${pathAnchor}</b> · right-click B → Select path · ${sel} node(s) ${pe} edge(s) selected`;
-    else h.innerHTML = `Click nodes to select · <b>right-click</b> a node for Ask / Path menu · <b>🛤</b> = path-pick mode`;
+    else h.innerHTML = `Click a node to open its page · double-click + drag to slingshot a link · selection bar below has Ask / Path / edit actions`;
     document.getElementById("pathMode").style.borderColor = pathMode ? "#7dd3fc" : "";
     document.getElementById("pathMode").style.color = pathMode ? "#7dd3fc" : "";
   };
@@ -1608,7 +2312,7 @@
       cy.elements().removeClass("anchor");
       e.target.addClass("anchor");
       paintHint();
-      aiTerm("sys","path anchor ⚓ "+id+" — now click target node B");
+      aiTerm("sys","path anchor "+id+" — now click target node B");
     } else if (id !== pathAnchor) {
       selectPath(pathAnchor, id);
       cy.elements().removeClass("anchor");
@@ -1616,31 +2320,39 @@
       paintHint();
     }
   });
-  panel.addEventListener("click",(e)=>{ if(e.target.closest("#ctxMenu")) return; ctxMenu.style.display="none"; });
+  panel.addEventListener("click",(e)=>{ const m=document.getElementById("ctxMenu"); if(m&&e.target.closest("#ctxMenu")) return; if(m) m.style.display="none"; });
   document.addEventListener("keydown",(e)=>{
     if (e.key==="Escape") {
-      ctxMenu.style.display="none";
+      const m=document.getElementById("ctxMenu"); if(m) m.style.display="none";
       if (pathMode || pathAnchor) { pathMode=false; pathAnchor=null; cy.elements().removeClass("anchor"); paintHint(); }
     }
+    // Delete key removes selected nodes/edges (no popup needed)
+    if ((e.key==="Delete"||e.key==="Backspace") && activeTab>=0 && !/INPUT|TEXTAREA/.test(document.activeElement?.tagName||"")) {
+      const sn=cy.$("node:selected"), se=cy.$("edge:selected");
+      if(sn.length||se.length){
+        e.preventDefault(); pushHist();
+        const d=tabs[activeTab].data, ids=new Set(sn.map(x=>x.id()));
+        d.nodes=d.nodes.filter(x=>!ids.has(x.id));
+        const pairs=new Set(se.map(x=>x.source().id()+">"+x.target().id()+":"+x.data("rel")));
+        d.edges=d.edges.filter(x=>!ids.has(x.source)&&!ids.has(x.target)&&!pairs.has(x.source+">"+x.target+":"+x.rel));
+        renderActive(); populateRelDropdowns(); paintSelBar();
+        try{ commitSoon(tabs[activeTab], "delete selection"); }catch(_){}
+        aiTerm("sys",`deleted ${sn.length} node(s) + ${se.length} edge(s) — undo available (Ctrl+←)`);
+      }
+    }
   });
-  let ctxNode=null, ctxEdge=null;
-  const showCtx = (rp) => {
-    const pw = panel.clientWidth, ph = panel.clientHeight;
-    ctxMenu.style.display = "block";
-    ctxMenu.style.left = Math.max(8, Math.min(rp.x + 12, pw - 244)) + "px";
-    ctxMenu.style.top = Math.max(8, Math.min(rp.y + 12, ph - 300)) + "px";
-  };
   const SHOT_DEFAULT = "Explain this selection in plain English: what is it and why does it matter?";
-  // 3 configurable hot prompts: left-click = run, right-click = edit (emoji/title/text). Stored locally.
+  // 3 hot prompts for Ask 0shot (icon/title/text). No emoji — Font Awesome icons.
   const HOT_DEFAULTS = [
-    { emoji: "🔍", title: "Explain", text: SHOT_DEFAULT },
-    { emoji: "🕸️", title: "Relate", text: "How are these selected entities connected? List direct and indirect links in plain English." },
-    { emoji: "🚩", title: "Red-team", text: "Red-team this selection: flag false correlations, weak evidence, and what to verify next." },
+    { icon: "fa-circle-question", title: "Explain", text: SHOT_DEFAULT },
+    { icon: "fa-share-nodes", title: "Relate", text: "How are these selected entities connected? List direct and indirect links in plain English." },
+    { icon: "fa-shield-halved", title: "Red-team", text: "Red-team this selection: flag false correlations, weak evidence, and what to verify next." },
   ];
   const loadHots = () => {
     try {
       const h = JSON.parse(localStorage.getItem("osint_hot_prompts") || "null");
-      if (Array.isArray(h) && h.length === 3 && h.every(x => x && x.text)) return h;
+      if (Array.isArray(h) && h.length === 3 && h.every(x => x && x.text))
+        return h.map((x,i)=>({icon:x.icon||HOT_DEFAULTS[i].icon, title:x.title||HOT_DEFAULTS[i].title, text:x.text}));
     } catch (_) {}
     return JSON.parse(JSON.stringify(HOT_DEFAULTS));
   };
@@ -1658,114 +2370,100 @@
     aiTerm("sys", `0shot handoff: ${sel.length} node(s) + ${allEdges.length} edge(s) context (English answer)`);
     window.open("0shot.html?q=" + encodeURIComponent(q) + "&format=answer&from=graph", "_blank");
   };
-  const hotBtnsHTML = () => `<div style="display:flex;gap:4px;margin-top:2px">` + hotPrompts.map((h, i) =>
-    `<button data-hot="${i}" class="act" style="flex:1;justify-content:center;font-size:18px;padding:8px 4px" title="${String(h.title || "").replace(/"/g, "&quot;")} — right-click to edit&#10;${String(h.text || "").slice(0, 120).replace(/</g, "&lt;")}">${String(h.emoji || "•")}</button>`).join("") + `</div>
-      <div style="font-size:10px;color:var(--dim);padding:2px 4px 0">left-click = run · right-click = edit</div>`;
-  cy.on("cxttap","node",(e)=>{
-    const n=e.target; ctxNode=n.id();
-    if (!n.selected()) n.select(); // right-click adds to multi-select
-    paintSelection();
-    const rp=e.renderedPosition, pw=panel.clientWidth, ph=panel.clientHeight;
-    const savedPrompt = localStorage.getItem("osint_0shot_prompt") || SHOT_DEFAULT;
-    const selIds = cy.$("node:selected").map(x=>x.id());
-    ctxMenu.innerHTML=`<div class="hd">● ${n.data("label")} · ${selIds.length} selected${pathAnchor?` · ⚓ ${pathAnchor}`:""}</div>
-      <div class="sec">Ask 0shot (English)</div>
-      ${hotBtnsHTML()}
-      <textarea id="ctxPrompt" rows="2" style="margin-top:6px" placeholder="…or type something new here (custom, saved separately)">${savedPrompt.replace(/</g,"&lt;")}</textarea>
-      <button data-act="shot" class="act go">🚀 Run in new tab</button>
-      <div class="sec">Node</div>
-      <button data-act="page" class="act go" style="margin-bottom:2px">📄 Open living page</button>
-      <button data-act="rename" class="act">✏️ Rename node…</button>
-      <button data-act="dup" class="act">⧉ Duplicate node</button>
-      <button data-act="del" class="act" style="color:#fb7185">🗑 Delete node</button>`;
-    ctxMenu.style.display="block";
-    ctxMenu.style.left=Math.max(8,Math.min(rp.x+12, pw-244))+"px";
-    ctxMenu.style.top=Math.max(8,Math.min(rp.y+12, ph-320))+"px";
-    const ta = ctxMenu.querySelector("#ctxPrompt");
-    ta.oninput = ()=>localStorage.setItem("osint_0shot_prompt", ta.value);
-    ta.onclick = (ev)=>ev.stopPropagation();
-    // hot buttons: left = run, right = edit inline (emoji/title/text), no delete needed
-    ctxMenu.querySelectorAll("[data-hot]").forEach(b => {
-      b.onclick = (ev) => { ev.stopPropagation(); runHot(hotPrompts[Number(b.dataset.hot)].text); ctxMenu.style.display = "none"; };
-      b.oncontextmenu = (ev) => {
-        ev.preventDefault(); ev.stopPropagation();
-        const i = Number(b.dataset.hot), h = hotPrompts[i];
-        ctxMenu.innerHTML = `<div class="hd">Edit hot button ${i + 1}</div>
-          <div style="display:flex;gap:4px;margin-bottom:4px">
-            <input id="hotEmoji" value="${String(h.emoji || "").replace(/"/g, "&quot;")}" style="width:44px;text-align:center;font-size:18px;background:rgba(0,0,0,.4);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px" title="emoji" />
-            <input id="hotTitle" value="${String(h.title || "").replace(/"/g, "&quot;")}" placeholder="title (hover text)" style="flex:1;background:rgba(0,0,0,.4);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:12px" />
-          </div>
-          <textarea id="hotText" rows="3" placeholder="prompt text…">${String(h.text || "").replace(/</g, "&lt;")}</textarea>
-          <div style="display:flex;gap:4px;margin-top:6px">
-            <button id="hotSave" class="act go" style="flex:1">✓ Save</button>
-            <button id="hotCancel" class="act" style="flex:1;justify-content:center">Cancel</button>
-          </div>`;
-        ctxMenu.querySelector("#hotCancel").onclick = () => ctxMenu.style.display = "none";
-        ctxMenu.querySelector("#hotSave").onclick = () => {
-          hotPrompts[i] = {
-            emoji: ctxMenu.querySelector("#hotEmoji").value.trim() || "•",
-            title: ctxMenu.querySelector("#hotTitle").value.trim() || ("Hot " + (i + 1)),
-            text: ctxMenu.querySelector("#hotText").value.trim() || HOT_DEFAULTS[i].text,
-          };
-          saveHots(); ctxMenu.style.display = "none";
-          aiTerm("sys", `hot button ${i + 1} saved: ${hotPrompts[i].emoji} ${hotPrompts[i].title}`);
-        };
-      };
-    });
-    ctxMenu.querySelectorAll("button:not([data-hot])").forEach(b=>b.onclick=()=>{
-      const d=tabs[activeTab].data; const act=b.dataset.act;
-      const node=d.nodes.find(x=>x.id===ctxNode);
-      if(act==="shot"){
-        const prompt = (ta.value||SHOT_DEFAULT).trim();
-        const sel = cy.$("node:selected").map(x=>({id:x.id(),label:x.data("label"),kind:x.data("kind")}));
-        const subEdges = cy.$("edge:selected,node:selected").edgesWith(cy.$("node:selected")).map(x=>({source:x.source().id(),target:x.target().id(),rel:x.data("rel")}));
-        const allEdges = d.edges.map(x=>({source:x.source,target:x.target,rel:x.rel}));
-        try { localStorage.setItem("osint_0shot_handoff", JSON.stringify({focus:{kind:"multi",nodes:sel}, edges:allEdges, subEdges, prompt, at:Date.now()})); } catch(err){}
-        const q = prompt + "\\n\\n[selected nodes: " + sel.map(s=>s.label+" ("+s.id+")").join(", ") + "]"
-          + (subEdges.length ? "\\n[involved relations: " + subEdges.map(x=>x.source+" —"+x.rel+"→ "+x.target).join("; ") + "]" : "");
-        aiTerm("sys",`0shot handoff: ${sel.length} node(s) + ${allEdges.length} edge(s) context (English answer)`);
-        window.open("0shot.html?q="+encodeURIComponent(q)+"&format=answer&from=graph", "_blank");
+  // Slim selection bar (no floating popup): fixed at graph bottom, acts on selection.
+  const selBar = document.getElementById("selBar");
+  const paintSelBar = () => {
+    if (!selBar) return;
+    const sn = cy.$("node:selected"), se = cy.$("edge:selected");
+    if (!sn.length && !se.length) { selBar.style.display = "none"; selBar.innerHTML = ""; return; }
+    const bits = [];
+    if (sn.length) {
+      const nm = sn.length === 1 ? sn[0].data("label") : sn.length + " nodes";
+      bits.push(`<span class="lbl"><i class="fa-solid fa-circle-nodes"></i> ${escH(String(nm)).slice(0, 40)}</span>`);
+      sn.length === 1 && bits.push(`<button data-sa="page"><i class="fa-solid fa-file-lines"></i> Page</button>`);
+      bits.push(`<button data-sa="shot"><i class="fa-solid fa-bolt"></i> Ask</button>`);
+      sn.length === 1 && bits.push(`<button data-sa="rename"><i class="fa-solid fa-pen"></i> Rename</button>`);
+      bits.push(`<button data-sa="dup"><i class="fa-solid fa-copy"></i> Duplicate</button>`);
+      bits.push(`<button data-sa="del" class="danger"><i class="fa-solid fa-trash"></i> Delete</button>`);
+    }
+    if (se.length) {
+      se.length === 1 && bits.push(`<span class="lbl"><i class="fa-solid fa-arrow-right"></i> ${escH(String(se[0].data("rel") || "related")).slice(0, 30)}</span>`);
+      se.length === 1 && bits.push(`<button data-sa="redge"><i class="fa-solid fa-pen"></i> Relation</button>`);
+      bits.push(`<button data-sa="dedge" class="danger"><i class="fa-solid fa-trash"></i> Delete edge${se.length > 1 ? "s" : ""}</button>`);
+    }
+    bits.push(`<button data-sa="path"><i class="fa-solid fa-route"></i> Path</button>`);
+    selBar.innerHTML = bits.join("");
+    selBar.style.display = "flex";
+    selBar.querySelectorAll("button").forEach(b => b.onclick = () => selAct(b.dataset.sa));
+  };
+  const selAct = (act) => {
+    if (activeTab < 0) return;
+    const d = tabs[activeTab].data;
+    const sn = cy.$("node:selected"), se = cy.$("edge:selected");
+    if (act === "page" && sn.length === 1) { openNodePage(sn[0].id(), "page"); return; }
+    if (act === "shot") { runHot((localStorage.getItem("osint_0shot_prompt") || SHOT_DEFAULT).trim() || SHOT_DEFAULT); return; }
+    pushHist();
+    if (act === "dup") {
+      sn.forEach(x => {
+        const src = d.nodes.find(n => n.id === x.id());
+        if (!src) return;
+        const c = JSON.parse(JSON.stringify(src));
+        c.id = src.id + "_copy" + String(Date.now() % 10000); c.label = src.label + " (copy)";
+        d.nodes.push(c);
+      });
+    } else if (act === "rename" && sn.length === 1) {
+      const node = d.nodes.find(x => x.id === sn[0].id());
+      if (node) { const v = prompt("Rename node:", node.label); if (v) { node.label = v; } else { histPast.pop(); paintHist(); return; } }
+    } else if (act === "del") {
+      const ids = new Set(sn.map(x => x.id()));
+      d.nodes = d.nodes.filter(x => !ids.has(x.id));
+      d.edges = d.edges.filter(x => !ids.has(x.source) && !ids.has(x.target));
+    } else if (act === "redge" && se.length === 1) {
+      const e0 = se[0], s = e0.source().id(), t = e0.target().id(), rel = e0.data("rel");
+      const v = prompt("Rename relation:", rel);
+      if (v) { let n = 0; for (const de of d.edges) { if (de.source === s && de.target === t) { de.rel = v; n++; } } aiTerm("sys", `renamed ${n} edge(s) to (${v})`); }
+      else { histPast.pop(); paintHist(); return; }
+    } else if (act === "dedge") {
+      const pairs = new Set(se.map(x => x.source().id() + ">" + x.target().id() + ":" + x.data("rel")));
+      d.edges = d.edges.filter(x => !pairs.has(x.source + ">" + x.target + ":" + x.rel));
+    } else if (act === "path") {
+      if (sn.length >= 1) {
+        pathAnchor = sn[0].id(); pathMode = true;
+        cy.elements().removeClass("anchor"); try { sn[0].addClass("anchor"); } catch (_) {}
+        paintHint();
+        aiTerm("sys", "path mode: anchor " + pathAnchor + " — now click target node B (or Esc to cancel)");
+        return;
       }
-      else if(act==="del"){ pushHist(); d.nodes=d.nodes.filter(x=>x.id!==ctxNode); d.edges=d.edges.filter(x=>x.source!==ctxNode&&x.target!==ctxNode); }
-      else if(act==="dup"&&node){ pushHist(); const c=JSON.parse(JSON.stringify(node)); c.id=node.id+"_copy"+Date.now()%10000; c.label=node.label+" (copy)"; c.data={...c.data,id:c.id,label:c.label}; d.nodes.push(c); }
-      else if(act==="rename"&&node){ const v=prompt("Rename node:",node.label); if(v){ pushHist(); node.label=v; node.data.label=v;} }
-      else if(act==="page"){ ctxMenu.style.display="none"; openNodePage(ctxNode, "page"); return; }
-      if(act!=="shot"){ ctxMenu.style.display="none"; { renderActive(); populateRelDropdowns(); } }
-      else ctxMenu.style.display="none";
-    });
+    }
+    renderActive(); populateRelDropdowns(); paintSelBar();
+    try{ commitSoon(tabs[activeTab], "edit " + act); }catch(_){}
+  };
+  // keep selection bar in sync with every selection change
+  cy.on("select unselect", () => { try { paintSelBar(); } catch (_) {} });
+  // Right-click is click-through: selects + opens the living page (no popup).
+  // All node actions live in the slim selection bar + the living page.
+  cy.on("cxttap", "node", (e) => {
+    try { e.originalEvent && e.originalEvent.preventDefault && e.originalEvent.preventDefault(); } catch (_) {}
+    const n = e.target;
+    try { if (!n.selected()) n.select(); paintSelection(); paintSelBar(); } catch (_) {}
+    try { if (typeof openNodePage === "function") openNodePage(n.id(), "page"); } catch (_) {}
   });
-  // edge right-click: same simple menu — rename relation / delete edge
-  cy.on("cxttap","edge",(e)=>{
-    const el=e.target;
-    if (!el.selected()) el.select();
-    paintSelection();
-    const s=el.source().id(), t=el.target().id(), rel=el.data("rel")||el.data("label")||"related";
-    ctxEdge={s, t, rel}; ctxNode=null;
-    ctxMenu.innerHTML=`<div class="hd">↳ ${s} —(${rel})→ ${t}</div>
-      <div class="sec">Relation</div>
-      <input id="edgeRel" value="${String(rel).replace(/"/g,"&quot;")}" style="width:100%;box-sizing:border-box;background:rgba(0,0,0,.4);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:12px;font-family:inherit" />
-      <button data-act="redge" class="act go" style="margin-top:6px">✏️ Rename relation</button>
-      <button data-act="dedge" class="act" style="color:#fb7185">🗑 Delete edge</button>`;
-    showCtx(e.renderedPosition);
-    ctxMenu.querySelectorAll("button").forEach(b=>b.onclick=()=>{
-      if(b.dataset.act==="redge"||b.dataset.act==="dedge"){
-        // reuse node handler logic via synthetic dispatch: handle directly here
-        const d=tabs[activeTab].data; const act=b.dataset.act;
-        if(act==="redge"){
-          const v=(ctxMenu.querySelector("#edgeRel").value||"").trim()||rel;
-          pushHist();
-          let n=0;
-          for(const de of d.edges){ if(de.source===s&&de.target===t&&(de.rel===rel||true)){ de.rel=v; n++; } }
-          aiTerm("sys",`renamed ${n} edge(s) → (${v}) — ⟲ undo available (Ctrl+←)`);
-        } else {
-          pushHist();
-          const before=d.edges.length;
-          d.edges=d.edges.filter(de=>!(de.source===s&&de.target===t));
-          aiTerm("sys",`deleted ${before-d.edges.length} edge(s) ${s} → ${t} — ⟲ undo available (Ctrl+←)`);
-        }
-        ctxMenu.style.display="none"; renderActive(); populateRelDropdowns();
+  cy.on("cxttap", "edge", (e) => {
+    try { e.originalEvent && e.originalEvent.preventDefault && e.originalEvent.preventDefault(); } catch (_) {}
+    try { if (!e.target.selected()) e.target.select(); paintSelection(); paintSelBar(); } catch (_) {}
+  });
+  // Edge double-click renames inline (no popup); edge delete lives in selection bar / Delete key.
+  cy.on("dblclick", "edge", (e) => {
+    try {
+      const el = e.target, s = el.source().id(), t = el.target().id(), rel = el.data("rel") || "related";
+      const v = prompt("Rename relation " + s + " -> " + t + ":", rel);
+      if (v && activeTab >= 0) {
+        pushHist();
+        for (const de of tabs[activeTab].data.edges) if (de.source === s && de.target === t) de.rel = v;
+        renderActive(); populateRelDropdowns(); paintSelBar();
+        try{ commitSoon(tabs[activeTab], "rename relation"); }catch(_){}
       }
-    });
+    } catch (_) {}
   });
   // export: graph -> clean JSON -> file in one smooth flow (timestamped name, status in log)
   const graphToJSON = (pretty=true) => {
@@ -1820,6 +2518,23 @@
       populateRelDropdowns();
     } catch(e) { console.error("bad url graph", e); }
   }
+  // capability url: ?g=<uuid> opens the shared graph (whoever knows the id can view it)
+  const gid = params.get("g") || params.get("id");
+  const bootShared = (async () => {
+    if (!gid) return;
+    try {
+      const v = params.get("v") || "";
+      const r = await fetch((BACKEND || window.location.origin) + "/api/graph?id=" + encodeURIComponent(gid) + (v ? "&v=" + encodeURIComponent(v) : ""));
+      const j = await r.json();
+      if (j.ok && j.doc && (j.doc.nodes || j.doc.edges)) {
+        const t = render(normData(j.doc), (j.name || "Shared graph"), { uuid: j.uuid || gid, version: j.version || 0 });
+        try { chainAdd({ kind: "build", prompt: "opened shared graph " + String(j.uuid).slice(0, 8), summary: `shared graph v${j.version || 0}: ${(j.doc.nodes || []).length}n + ${(j.doc.edges || []).length}e`, touch: [], before: null }); } catch (_) {}
+        aiTerm("sys", `opened shared graph ${String(j.uuid).slice(0, 8)} · v${j.version || 0} — ${j.message || "shared"}`);
+      } else {
+        aiTerm("sys", "share link: unknown graph id");
+      }
+    } catch (e) { console.error("bad share link", e); }
+  })();
   if (activeTab < 0 && tabs.length) activeTab = 0;
   renderActive();
   populateRelDropdowns();
@@ -1841,34 +2556,52 @@
 #aiTermTools input{background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.12);color:#e2e8f0;border-radius:6px;padding:2px 8px;font-size:11px;font-family:inherit;width:140px;}
 #aiTermTools button{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:#e2e8f0;border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;}
 </style>
-<div id="aiTerm"><div id="aiTermHead"><span id="aiTermDot"></span><span>AI LOG</span><span id="aiTermCount" style="opacity:.8">0 events</span><span id="aiTermTools"><input id="aiTermFilter" placeholder="filter history…" title="filter log lines"/><button id="aiTermCopy" title="copy filtered log">⧉</button><button id="aiTermClear" title="clear log">✕</button></span><span style="opacity:.7">▲▼ toggle</span></div><div id="aiTermBody"></div></div>
+<div id="aiTerm"><div id="aiTermHead"><span id="aiTermDot"></span><span>AI LOG</span><span id="aiTermCount" style="opacity:.8">0 events</span><span id="aiTermTools"><input id="aiTermFilter" placeholder="filter history…" title="filter log lines"/><button id="aiTermCopy" title="copy filtered log"><i class="fa-solid fa-copy"></i></button><button id="aiTermClear" title="clear log"><i class="fa-solid fa-xmark"></i></button></span><span style="opacity:.7">▲▼ toggle</span></div><div id="aiTermBody"></div></div>
 <!-- node page split-view: living page + context chat per node (SpacetimeDB-backed) -->
 <div id="nodePage">
   <div style="display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border)">
-    <span style="font-size:18px">📄</span>
+    <span style="font-size:18px"><i class="fa-solid fa-file-lines"></i></span>
     <div style="flex:1;min-width:0"><div id="npTitle" style="font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Node page</div>
     <div id="npSub" style="font-size:11px;color:var(--dim)">select a node to dive in</div></div>
     <div id="nodePageTabs" style="flex:0 0 auto"><button id="npTabPage" class="on">Page</button><button id="npTabChat">Chat</button></div>
-    <button id="npClose" class="secondary" style="background:rgba(255,255,255,.08);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;cursor:pointer">✕</button>
+    <button id="npClose" class="secondary" style="background:rgba(255,255,255,.08);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;cursor:pointer"><i class="fa-solid fa-xmark"></i></button>
   </div>
   <div style="padding:12px 14px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:10px">
     <div id="npPanePage" style="display:flex;flex-direction:column;gap:8px">
-      <input id="npName" placeholder="page title" style="background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:14px;font-weight:700;font-family:inherit" />
-      <div style="display:flex;gap:6px">
-        <input id="npKind" placeholder="kind" style="flex:0 0 130px;background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:12px;font-family:inherit" />
-        <span id="npSaved" style="flex:1;font-size:11px;color:var(--dim);align-self:center"></span>
+      <div style="display:flex;gap:6px;align-items:center">
+        <div id="npModeTabs" style="flex:0 0 auto;display:flex;background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+          <button id="npModeView" class="on" style="border:none;background:linear-gradient(135deg,#0284c7,#7c3aed);color:#fff;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer"><i class="fa-solid fa-book-open"></i> View</button>
+          <button id="npModeEdit" style="border:none;background:transparent;color:var(--text);padding:6px 12px;font-size:12px;cursor:pointer"><i class="fa-solid fa-pen"></i> Edit</button>
+        </div>
+        <span id="npSaved" style="flex:1;font-size:11px;color:var(--dim);text-align:right"></span>
       </div>
-      <textarea id="npBody" rows="14" placeholder="Living notes for this node — context, evidence, open questions… (refined over time)" style="background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:13px;line-height:1.6;font-family:inherit;resize:vertical"></textarea>
+      <div id="npView" style="background:rgba(0,0,0,.25);border:1px solid var(--border);border-radius:8px;padding:10px 12px;min-height:120px"></div>
+      <div id="npEditWrap" style="display:none;flex-direction:column;gap:8px">
+        <input id="npName" placeholder="page title" style="background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:14px;font-weight:700;font-family:inherit" />
+        <input id="npKind" placeholder="kind" style="background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:12px;font-family:inherit" />
+        <textarea id="npBody" rows="14" placeholder="Living notes for this node — markdown supported, [[link]] other pages… (refined over time)" style="background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:13px;line-height:1.6;font-family:inherit;resize:vertical"></textarea>
+      </div>
+      <div id="npLinks" style="font-size:12px;color:var(--dim)"></div>
       <div style="display:flex;gap:6px">
-        <button id="npSave" class="secondary" style="flex:1;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.4);color:#34d399;border-radius:8px;padding:8px;font-weight:800;cursor:pointer">✓ Save page</button>
-        <button id="npRefine" class="secondary" style="flex:1;background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.4);color:#a78bfa;border-radius:8px;padding:8px;font-weight:800;cursor:pointer">✨ Refine with AI</button>
+        <button id="npSave" class="secondary" style="flex:1;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.4);color:#34d399;border-radius:8px;padding:8px;font-weight:800;cursor:pointer"><i class="fa-solid fa-check"></i> Save page</button>
+        <button id="npRefine" class="secondary" style="flex:1;background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.4);color:#a78bfa;border-radius:8px;padding:8px;font-weight:800;cursor:pointer"><i class="fa-solid fa-wand-magic-sparkles"></i> Refine with AI</button>
+        <button id="npHist" class="secondary" title="page version history" style="flex:0 0 auto;background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 12px;cursor:pointer"><i class="fa-solid fa-clock-rotate-left"></i></button>
+      </div>
+      <div id="npHistList" style="display:none;flex-direction:column;gap:4px;max-height:180px;overflow:auto"></div>
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim)">Ask 0shot</div>
+      <div id="npShots" style="display:flex;gap:6px"></div>
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim)">Node actions</div>
+      <div style="display:flex;gap:6px">
+        <button id="npRename" class="np-act"><i class="fa-solid fa-pen"></i> Rename</button>
+        <button id="npDup" class="np-act"><i class="fa-solid fa-copy"></i> Duplicate</button>
+        <button id="npDel" class="np-act" style="color:#fb7185"><i class="fa-solid fa-trash"></i> Delete</button>
       </div>
     </div>
     <div id="npPaneChat" style="display:none;flex-direction:column;gap:8px">
       <div id="npMsgs"></div>
       <div style="display:flex;gap:6px">
         <input id="npInput" placeholder="ask / add context about this node… (Enter to send)" style="flex:1;background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:13px;font-family:inherit" />
-        <button id="npSend" class="secondary" style="background:linear-gradient(135deg,#0284c7,#7c3aed);color:#fff;border:none;border-radius:8px;padding:0 16px;font-weight:800;cursor:pointer">➤</button>
+        <button id="npSend" class="secondary" style="background:linear-gradient(135deg,#0284c7,#7c3aed);color:#fff;border:none;border-radius:8px;padding:0 16px;font-weight:800;cursor:pointer"><i class="fa-solid fa-paper-plane"></i></button>
       </div>
       <div style="font-size:11px;color:var(--dim)">Chat is saved per node — it becomes the context the page is refined from.</div>
     </div>

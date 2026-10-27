@@ -179,7 +179,10 @@ TOOLS = {
 DEFAULT_ALLOW = {"graph_search", "web_search", "fetch_url"}  # exec off unless asked
 
 def _tool_defs(allow=None):
-    allow = set(allow) if allow else set(DEFAULT_ALLOW)
+    if allow is None:
+        allow = set(DEFAULT_ALLOW)
+    else:
+        allow = set(allow)
     defs = []
     for name, (_, desc, params) in TOOLS.items():
         if name not in allow:
@@ -470,7 +473,7 @@ def agent_zero(prompt, allow=None, budget=28, ctx="", history=None):
     history: prior message list from a previous /zero call to resume from."""
     import time as _t
     t0 = _t.time()
-    allow = set(allow) if allow else set(DEFAULT_ALLOW)
+    allow = set(allow) if allow is not None else set(DEFAULT_ALLOW)
     tools = _tool_defs(allow)
     trace = []
     if history and isinstance(history, list):
@@ -492,11 +495,14 @@ def agent_zero(prompt, allow=None, budget=28, ctx="", history=None):
             "parameters": t["parameters"]}} for t in tools]
         try:
             import urllib.request as _u
+            payload = {"model": MODEL, "messages":
+                       [{"role": "system", "content": ZERO_SYS}] + history,
+                       "temperature": 0.2}
+            if cc_tools:
+                payload["tools"] = cc_tools
             req = _u.Request(
                 BASE + "/chat/completions",
-                data=json.dumps({"model": MODEL, "messages":
-                                 [{"role": "system", "content": ZERO_SYS}] + history,
-                                 "tools": cc_tools, "temperature": 0.2}).encode(),
+                data=json.dumps(payload).encode(),
                 headers={"Content-Type": "application/json",
                          "Authorization": "Bearer " + KEY})
             with _u.urlopen(req, timeout=remain) as r:

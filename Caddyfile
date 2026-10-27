@@ -1,0 +1,11 @@
+# Caddy reverse proxy — automatic HTTPS, zero cert handling.
+# Usage: caddy run --config Caddyfile  (or `caddy reverse-proxy --from <domain> --to localhost:3334`)
+# Requires DNS for <domain> pointing at this VPS.
+
+{
+	auto_https on
+}
+
+{$DOMAIN} {
+	reverse_proxy 127.0.0.1:3334
+}

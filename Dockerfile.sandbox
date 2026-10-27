@@ -1,0 +1,17 @@
+# Debian exec sandbox: python3 + node, no network at runtime.
+# Keep it small and boring: stable-slim + two runtimes, nobody user.
+FROM debian:stable-slim
+
+RUN apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      python3 nodejs ca-certificates \
+ && rm -rf /var/lib/apt/lists/* \
+ && useradd -m -u 65532 runner \
+ && mkdir -p /work && chown runner /work
+
+USER nobody
+WORKDIR /work
+
+# container runs one snippet then exits, e.g.:
+#   docker run --rm -i --network none ... threatpath-sandbox:debian python3 /work/code
+CMD ["bash", "--version"]

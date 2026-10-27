@@ -1,0 +1,17 @@
+[Unit]
+Description=threatpath OSINT graph backend
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/threatpath
+EnvironmentFile=/opt/threatpath/.env
+ExecStart=/usr/bin/python3 backend/server.py
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

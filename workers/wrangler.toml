@@ -1,0 +1,17 @@
+name = "threatpath"
+main = "src/worker.js"
+compatibility_date = "2025-06-01"
+
+# Bundle the repo-root HTML into the Worker so one project serves everything.
+[[rules]]
+type = "Text"
+globs = ["../*.html"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cvm"
+database_id = "d04963fd-dbae-441b-94eb-1fb5fdba18bf"
+
+[vars]
+AI_BASE_URL = "https://api.meta.ai/v1"
+AI_MODEL = "muse-spark-1.3"

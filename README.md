@@ -1,5 +1,11 @@
 # OSINT Graph (threatpath)
 
+prior work threatpath-production.up.railway.app
+
+demo prior work threatpath.sgol.workers.dev
+
+
+
 Single-input OSINT graph viewer + secret `0shot` eval page, with a Python stdlib backend.
 
 ## Components
