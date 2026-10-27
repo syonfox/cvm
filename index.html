@@ -58,6 +58,17 @@
   #cyTools button{background:rgba(5,8,16,.85);border:1px solid var(--border);color:var(--text);border-radius:9px;width:32px;height:32px;font-size:16px;line-height:1;cursor:pointer;backdrop-filter:blur(8px)}
   #cyTools button:disabled{opacity:.3;cursor:default}
   #cyTools button:hover:not(:disabled){border-color:var(--cyan);color:var(--cyan)}
+  /* node page split-view: graph left, living page right */
+  #nodePage{position:fixed;top:0;right:0;bottom:26px;width:min(560px,50vw);z-index:500;display:none;flex-direction:column;background:rgba(8,12,24,.97);border-left:1px solid var(--border);box-shadow:-20px 0 60px rgba(0,0,0,.6);backdrop-filter:blur(16px)}
+  #nodePage.open{display:flex}
+  #nodePageTabs{display:flex;gap:6px}
+  #nodePageTabs button{flex:1;background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px;font-size:12px;cursor:pointer}
+  #nodePageTabs button.on{background:linear-gradient(135deg,#0284c7,#7c3aed);border-color:transparent;font-weight:700}
+  #npMsgs{display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:46vh;padding:4px}
+  #npMsgs .m{border-radius:10px;padding:8px 10px;font-size:12.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+  #npMsgs .m.user{background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.3);align-self:flex-end;max-width:92%}
+  #npMsgs .m.assistant{background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.3);align-self:flex-start;max-width:92%}
+  #npMsgs .m .t{font-size:10px;color:var(--dim);margin-bottom:2px}
   #undoBtn:not(:disabled),#redoBtn:not(:disabled){border-color:rgba(125,211,252,.5)!important;color:#7dd3fc!important;font-weight:800}
   .panel.big{position:fixed;inset:56px 12px 52px 12px;z-index:200;background:#050810;box-shadow:0 20px 80px rgba(0,0,0,.7)}
   .panel.big #cy{height:100%!important}
@@ -111,7 +122,7 @@
     <details id="graphCfg" style="font-size:12px;color:var(--dim);background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:10px;padding:6px 10px;max-width:280px"><summary style="cursor:pointer">physics: best default — click to tune</summary>
       <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px;color:var(--text)">
         <label>Repulsion <span id="vRep"></span><input id="cRep" type="range" min="4000" max="30000" step="500" style="width:100%"></label>
-        <label>Link length <span id="vLen"></span><input id="cLen" type="range" min="60" max="260" step="5" style="width:100%"></label>
+        <label>Link length <span id="vLen"></span><input id="cLen" type="range" min="60" max="900" step="5" style="width:100%"></label>
         <label>Anti-bunch radius <span id="vSep"></span><input id="cSep" type="range" min="60" max="260" step="5" style="width:100%"></label>
         <label>Gravity <span id="vGrav"></span><input id="cGrav" type="range" min="0" max="2" step="0.05" style="width:100%"></label>
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input id="cEdgeAlong" type="checkbox" checked style="width:16px;height:16px;accent-color:#a3e635"> relation text along the line</label>
@@ -147,7 +158,7 @@
     </div>
   </aside>
   <div class="grid">
-    <div class="panel"><div id="cy"></div><div id="graphHint">Click nodes to select · <b>right-click</b> a node for Ask / Path menu · <b>🛤</b> = path-pick mode</div><div id="ctxMenu"></div><div id="cyTools"><button id="undoBtn" title="undo (Ctrl+← or Ctrl+Z)">⟲</button><button id="redoBtn" title="redo (Ctrl+→ or Ctrl+Y)">⟳</button><button id="zIn" title="zoom in (+)">+</button><button id="zOut" title="zoom out (−)">−</button><button id="zFit" title="fit to view (F)">⤢</button><button id="zBig" title="big view / fullscreen (F11)">⛶</button><button id="pathMode" title="path-pick mode: click A then B">🛤</button></div></div>
+    <div class="panel"><div id="cy"></div><div id="graphHint">Double-click + drag a node to slingshot a link · Click nodes to select · <b>right-click</b> for Ask / Path · <b>🛤</b> = path-pick</div><div id="ctxMenu"></div><div id="cyTools"><button id="undoBtn" title="undo (Ctrl+← or Ctrl+Z)">⟲</button><button id="redoBtn" title="redo (Ctrl+→ or Ctrl+Y)">⟳</button><button id="zIn" title="zoom in (+)">+</button><button id="zOut" title="zoom out (−)">−</button><button id="zFit" title="fit to view (F)">⤢</button><button id="zBig" title="big view / fullscreen (F11)">⛶</button><button id="pathMode" title="path-pick mode: click A then B">🛤</button></div></div>
     <div class="side">
       <div class="card"><h3>Nodes</h3><div id="nodes"></div></div>
       <div class="card"><h3>Adversarial Flags</h3><div id="flags"></div></div>
@@ -162,6 +173,18 @@
         <button id="applyRules" class="secondary" style="width:100%;margin-top:6px">Apply Rules</button>
       </div>
       <div class="card"><h3>AI Recommend (hot or not)</h3><div id="recs"></div></div>
+      <div class="card" id="duelCard"><h3>◧ Standardizer vs Visionary ◨ <span id="duelScore" style="opacity:.7"></span></h3>
+        <div id="duelVs" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-weight:800;font-size:13px">
+          <span style="color:#34d399">◧ clean</span><span id="duelVsMid" style="flex:1;text-align:center;background:rgba(255,255,255,.06);border-radius:8px;padding:2px">VS</span><span style="color:#a78bfa">expand ◨</span>
+        </div>
+        <div id="duelOut" style="font-size:12px;color:var(--dim);margin-bottom:8px">One round: ◧ merges junk, ◨ adds what's missing. Accept to score.</div>
+        <textarea id="duelDirective" rows="1" placeholder="✎ steer both agents… (expands as you type)"></textarea>
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <button id="duelBtn" class="secondary" style="flex:1;border-color:#34d399;color:#34d399;font-weight:800">⚔ Duel round</button>
+          <button id="duelAccept" class="secondary" style="flex:1;display:none;border-color:#a78bfa;color:#a78bfa;font-weight:800">✓ Accept</button>
+        </div>
+      </div>
+      <div class="card"><h3>Input Chain ⛓ <span id="chainCount" style="opacity:.6"></span></h3><div id="chain" style="display:flex;flex-direction:column;gap:8px;max-height:420px;overflow:auto"></div></div>
       <div class="card"><h3>Legend</h3><div class="legend" id="legend"></div></div>
     </div>
   </div>
@@ -206,7 +229,7 @@
       textureOnViewport: true,
       hideEdgesOnViewport: false,
       motionBlur: false,
-      wheelSensitivity: 0.35, minZoom: 0.1, maxZoom: 6,
+      wheelSensitivity: 1, minZoom: 0.1, maxZoom: 6,
       zoomingEnabled: true, userZoomingEnabled: true,
       panningEnabled: true, userPanningEnabled: true,
       boxSelectionEnabled: true, selectionType: "additive",
@@ -233,6 +256,11 @@
         { selector:"edge.sug-mod", style:{ "line-color":"#fbbf24", "target-arrow-color":"#fbbf24", width:4 } },
         { selector:"node.sug-del", style:{ "border-color":"#fb7185", "border-width":5, "border-style":"dashed", "overlay-color":"#fb7185", "overlay-opacity":0.45, "overlay-padding":12, opacity:0.55 } },
         { selector:"edge.sug-del", style:{ "line-color":"#fb7185", "target-arrow-color":"#fb7185", width:4, "line-style":"dashed", opacity:0.6 } },
+        { selector:"node.sling-src", style:{ "border-color":"#34d399", "border-width":6, "overlay-color":"#34d399", "overlay-opacity":0.5, "overlay-padding":16 } },
+        { selector:"node.drop-ok", style:{ "border-color":"#34d399", "border-width":7, "overlay-color":"#34d399", "overlay-opacity":0.55, "overlay-padding":20 } },
+        { selector:"node.self-ok", style:{ "border-color":"#fbbf24", "border-width":7, "border-style":"double", "overlay-color":"#fbbf24", "overlay-opacity":0.55, "overlay-padding":20 } },
+        { selector:"node.ghost", style:{ "background-color":"#34d399", opacity:0.85, width:18, height:18, "border-width":3, "border-color":"#fff" } },
+        { selector:"edge.ghost-edge", style:{ "line-color":"#34d399", "target-arrow-color":"#34d399", width:3, "line-style":"dashed", label:"data(label)", "font-size":11, "font-weight":800, color:"#a7f3d0", "text-background-color":"#064e3b", "text-background-opacity":1, "text-background-padding":5, "text-background-shape":"roundrectangle" } },
       ],
       layout: { name:"cose", padding:40, animate:true, animationDuration:600 }
     });
@@ -248,6 +276,102 @@
   });
   cy.on("grab","node",()=>{ document.getElementById("cy").style.cursor="grabbing"; });
   cy.on("free","node",()=>{ document.getElementById("cy").style.cursor="default"; });
+  // ---- slingshot link-drag: double-click (or double-tap) a node, drag, plop onto target ----
+  // drop on node = connect · drop back on source = self-loop · drop on empty = new node+edge · drag out = cancel
+  const linkDrag = { on:false, src:null, ghost:null, edge:null, cand:null, sx:0, sy:0 };
+  const SNAP_R = 30; // smart magnet buffer (px, rendered)
+  const startLink = (node, at) => {
+    if (activeTab < 0 || linkDrag.on) return;
+    try { cy.getElementById("__ghost").remove(); cy.getElementById("__gedge").remove(); } catch(_){}
+    linkDrag.on = true; linkDrag.src = node; linkDrag.cand = null;
+    const p = node.position();
+    cy.startBatch();
+    linkDrag.ghost = cy.add({ data:{ id:"__ghost", label:"", color:"#34d399", width:18, height:18 }, classes:"ghost" })[0] || cy.getElementById("__ghost");
+    linkDrag.ghost.position({ ...p });
+    linkDrag.edge = cy.add({ data:{ id:"__gedge", source:node.id(), target:"__ghost", label:"…", rel:"…" }, classes:"ghost-edge" })[0];
+    cy.endBatch();
+    node.addClass("sling-src");
+    document.getElementById("cy").style.cursor = "crosshair";
+    try { aiTerm("sys","slingshot: drag → plop on node (self = loop) · empty = new node · out = cancel"); } catch(_){}
+  };
+  const moveLink = (rx, ry) => {
+    if (!linkDrag.on) return;
+    let m;
+    try { m = cy.renderedPositionToModel ? cy.renderedPositionToModel({x:rx - cy.container().getBoundingClientRect().left, y:ry - cy.container().getBoundingClientRect().top}) : linkDrag.ghost.position(); }
+    catch(_) { m = linkDrag.ghost.position(); }
+    linkDrag.ghost.position(m);
+    // magnet: nearest node within SNAP_R (rendered px)
+    let best=null, bd=SNAP_R;
+    cy.nodes().not("#__ghost").forEach(n=>{
+      const rp = n.renderedPosition();
+      const d = Math.hypot(rp.x-(rx-cy.container().getBoundingClientRect().left), rp.y-(ry-cy.container().getBoundingClientRect().top));
+      if (d < bd) { bd=d; best=n; }
+    });
+    if (linkDrag.cand && (!best || best.id()!==linkDrag.cand.id())) { try{linkDrag.cand.removeClass("drop-ok self-ok");}catch(_){} linkDrag.cand=null; }
+    if (best) {
+      linkDrag.cand = best;
+      best.addClass(best.id()===linkDrag.src.id() ? "self-ok" : "drop-ok");
+      // meaty: squash target slightly toward ghost (juice without layout fight)
+      try { best.animation({ style:{ width:(best.data("width")||40)*1.25, height:(best.data("height")||40)*1.25 }, duration:120 }).play(); } catch(_){}
+    }
+    const r = cy.container().getBoundingClientRect();
+    const out = rx<r.left-40||rx>r.right+40||ry<r.top-40||ry>r.bottom+40;
+    linkDrag.edge.data("label", out ? "✕ cancel" : (best ? (best.id()===linkDrag.src.id() ? "⟲ self-loop" : "➜ plop!") : "+ new node"));
+  };
+  const endLink = (rx, ry, cancelled) => {
+    if (!linkDrag.on) return;
+    const src = linkDrag.src, cand = linkDrag.cand;
+    const r = cy.container().getBoundingClientRect();
+    const out = cancelled || rx<r.left||rx>r.right||ry<r.top||ry>r.bottom;
+    const ghostPos = linkDrag.ghost ? { ...linkDrag.ghost.position() } : { ...src.position(), x:src.position().x+120, y:src.position().y+80 };
+    try { linkDrag.ghost.remove(); linkDrag.edge.remove(); } catch(_){}
+    try { cy.elements().removeClass("sling-src drop-ok self-ok ghost ghost-edge"); src.removeClass("sling-src"); } catch(_){}
+    // restore squashed widths
+    try { cy.nodes().forEach(n=>{ const w=n.data("width"); if(w) n.style({width:w, height:w}); }); } catch(_){}
+    document.getElementById("cy").style.cursor = "default";
+    linkDrag.on=false; linkDrag.src=null; linkDrag.cand=null; linkDrag.ghost=null; linkDrag.edge=null;
+    if (out) { try{aiTerm("sys","slingshot cancelled (dragged out)");}catch(_){} renderActive(); populateRelDropdowns(); return; }
+    pushHist();
+    const d = tabs[activeTab].data;
+    const relOf = (a,b) => { const v = prompt(`Relation ${a} → ${b}:`, a===b ? "relates to self" : "related"); return (v&&v.trim())||"related"; };
+    if (cand) {
+      const rel = relOf(src.data("label")||src.id(), cand.data("label")||cand.id());
+      d.edges.push({ source:src.id(), target:cand.id(), rel });
+      renderActive(); populateRelDropdowns(); renderTabs();
+      flashIds([src.id(), cand.id()]); blerp(cand.id());
+      try { chainAdd({kind:"link", prompt:`slingshot ${src.id()} → ${cand.id()} (${rel})`, summary:`+1 edge (${rel})`, touch:[src.id(),cand.id()], before:null}); } catch(_){}
+      try{aiTerm("sys",`plop! ${src.id()} → ${cand.id()} (${rel})`);}catch(_){}
+    } else {
+      const label = prompt("New node label:", "New node") || "New node";
+      const id = "n"+Date.now().toString(36);
+      d.nodes.push({ id, label, kind:"Concept", attrs:{} });
+      const rel = relOf(src.data("label")||src.id(), label);
+      d.edges.push({ source:src.id(), target:id, rel });
+      renderActive(); populateRelDropdowns(); renderTabs();
+      // plop the new node where the ghost died + juicy pop
+      const el = cy.getElementById(id);
+      if (el.length) { el.position(ghostPos); el.addClass("sug-add"); flashIds([src.id(), id]); setTimeout(()=>{try{el.removeClass("sug-add");}catch(_){}},1800); }
+      try { chainAdd({kind:"link-new", prompt:`slingshot ${src.id()} → new “${label}” (${rel})`, summary:`+1 node +1 edge`, touch:[src.id(),id], before:null}); } catch(_){}
+      try{aiTerm("sys",`plop! new node “${label}” linked from ${src.id()}`);}catch(_){}
+    }
+  };
+  // desktop: double-click starts, container mousemove/mouseup drives it
+  cy.on("dblclick", "node", (e)=>{ try{e.originalEvent.preventDefault();}catch(_){} startLink(e.target, e); });
+  // touch: two quick taps on same node starts it
+  let lastTap={id:null,t:0};
+  cy.on("tap","node",(e)=>{
+    const now=Date.now(), id=e.target.id();
+    if (lastTap.id===id && now-lastTap.t<320) { startLink(e.target, e); lastTap={id:null,t:0}; return; }
+    lastTap={id,t:now};
+  });
+  (()=>{ const c=document.getElementById("cy");
+    c.addEventListener("mousemove",(e)=>{ if(linkDrag.on) moveLink(e.clientX,e.clientY); });
+    c.addEventListener("mouseup",(e)=>{ if(linkDrag.on) endLink(e.clientX,e.clientY,false); });
+    c.addEventListener("mouseleave",()=>{ /* allow drag-out buffer; cancel only far out */ });
+    document.addEventListener("mouseup",(e)=>{ if(linkDrag.on){ const r=c.getBoundingClientRect();
+      if(e.clientX<r.left-40||e.clientX>r.right+40||e.clientY<r.top-40||e.clientY>r.bottom+40) endLink(e.clientX,e.clientY,true); } });
+    document.addEventListener("keydown",(e)=>{ if(e.key==="Escape"&&linkDrag.on){ endLink(-9999,-9999,true); } });
+  })();
   // relation labels along the curve: edge text-rotation autorotate follows the line angle
   let edgeAlong = localStorage.getItem("osint_edge_along") !== "0";
   const applyEdgeAlong = () => {
@@ -378,6 +502,63 @@
       }
       return tabs.length>0;
     }catch(e){ return false; }
+  };
+
+  // ---- input chain: visual prompt → change history (persisted, clickable) ----
+  let chain = [];
+  try { chain = JSON.parse(localStorage.getItem("osint_chain_v1")||"[]"); } catch(_) { chain = []; }
+  const saveChain = () => { try { localStorage.setItem("osint_chain_v1", JSON.stringify(chain.slice(-60))); } catch(_){} };
+  const chainAdd = (entry) => {
+    chain.push(Object.assign({at: Date.now(), id: "c"+Date.now().toString(36)+Math.floor(Math.random()*99)}, entry));
+    if (chain.length > 60) chain = chain.slice(-60);
+    saveChain(); paintChain();
+  };
+  const paintChain = () => {
+    const box = document.getElementById("chain"); if (!box) return;
+    document.getElementById("chainCount").textContent = chain.length ? `(${chain.length})` : "";
+    if (!chain.length) { box.innerHTML = `<div class="empty" style="padding:12px">No prompts yet — Build or AI Improve to start the chain.</div>`; return; }
+    box.innerHTML = [...chain].reverse().map((c) => {
+      const t = new Date(c.at).toLocaleTimeString();
+      const dot = c.kind==="build" ? "#38bdf8" : c.kind==="improve" ? "#a78bfa" : c.kind==="recommend" ? "#34d399" : c.kind==="restore" ? "#fb7185" : "#94a3b8";
+      const sum = (c.summary||"").replace(/</g,"&lt;").slice(0,220);
+      const pr = (c.prompt||"").replace(/</g,"&lt;").slice(0,220);
+      return `<div data-chain="${c.id}" style="border:1px solid var(--border);border-left:3px solid ${dot};border-radius:8px;padding:8px;background:rgba(0,0,0,.3);font-size:12px;cursor:pointer">
+        <div style="display:flex;gap:6px;align-items:center"><b>${c.kind||"edit"}</b><span style="color:var(--dim);font-size:11px">${t}</span>
+        <span style="margin-left:auto;display:flex;gap:4px"><button data-cview="${c.id}" title="re-highlight this change" style="background:none;border:none;cursor:pointer">👁</button><button data-crevert="${c.id}" title="revert to before this change" style="background:none;border:none;cursor:pointer">⟲</button></span></div>
+        <div style="color:var(--text);margin:4px 0">❝ ${pr||"(no prompt)"} ❞</div>
+        <div style="color:var(--dim);font-size:11px">${sum}</div></div>`;
+    }).join("");
+    box.querySelectorAll("[data-chain]").forEach(el => {
+      el.onclick = (e) => {
+        if (e.target.dataset.cview || e.target.dataset.crevert) return;
+        chainFlash(el.dataset.chain);
+      };
+    });
+    box.querySelectorAll("[data-cview]").forEach(b => b.onclick = (e) => { e.stopPropagation(); chainFlash(b.dataset.cview); });
+    box.querySelectorAll("[data-crevert]").forEach(b => b.onclick = (e) => { e.stopPropagation(); chainRevert(b.dataset.crevert); });
+  };
+  const chainFlash = (id) => {
+    const c = chain.find(x => x.id === id); if (!c || !c.touch) return;
+    cy.elements().removeClass("flash-ok sug-add sug-mod");
+    let n = 0;
+    for (const tid of (c.touch||[])) { const el = cy.getElementById(tid); if (el.length) { el.addClass("sug-add"); n++; } }
+    aiTerm("sys", `chain 👁 ${c.kind}: re-highlighted ${n} node(s) — ❝ ${(c.prompt||"").slice(0,80)} ❞`);
+    setTimeout(() => cy.elements().removeClass("sug-add sug-mod"), 2200);
+  };
+  const chainRevert = (id) => {
+    const c = chain.find(x => x.id === id); if (!c || !c.before) return;
+    if (!confirm(`Revert to before "${(c.prompt||c.kind).slice(0,60)}"?`)) return;
+    pushHist();
+    tabs[activeTab].data = JSON.parse(c.before);
+    renderActive(); populateRelDropdowns(); renderTabs();
+    chainAdd({kind:"restore", prompt:"revert to before: "+(c.prompt||c.kind), summary:"restored snapshot", touch:[], before:c.before});
+    aiTerm("sys", "chain ⟲ reverted one step (undo available Ctrl+←)");
+  };
+  const touchIds = (before, after) => {
+    try {
+      const b = new Set(JSON.parse(before).nodes.map(n=>n.id));
+      return JSON.parse(after).nodes.filter(n=>!b.has(n.id)).map(n=>n.id).slice(0,25);
+    } catch(_) { return []; }
   };
 
   // ---- layers sidebar (left column; dropdown on mobile) ----
@@ -583,7 +764,7 @@
     batchAdd(els);
     cy.layout(fastLayout(els.length)).run();
     const nl = document.getElementById("nodes");
-    nl.innerHTML = (data.nodes||[]).map(n=>`<div class="node"><span class="dot" style="background:${colors[n.kind]||'#94a3b8'}"></span><span><b>${n.label}</b> <span style="color:var(--dim)">(${n.kind}${n.layer?" · "+n.layer:""})</span></span></div>`).join("") || `<div class="empty">No nodes</div>`;
+    nl.innerHTML = (data.nodes||[]).map(n=>`<div class="node" data-node="${n.id}" style="cursor:pointer" title="open living page"><span class="dot" style="background:${colors[n.kind]||'#94a3b8'}"></span><span><b>${n.label}</b> <span style="color:var(--dim)">(${n.kind}${n.layer?" · "+n.layer:""})</span></span></div>`).join("") || `<div class="empty">No nodes</div>`;
     const fl = document.getElementById("flags");
     fl.innerHTML = (data.adversarial||[]).length ? data.adversarial.map(f=>`<div class="flag">⚠ ${f.issue||f.node}</div>`).join("") : `<div class="empty" style="padding:12px">No adversarial flags. Clean.</div>`;
     const lg = document.getElementById("legend");
@@ -678,6 +859,62 @@
   toolExec.onchange=()=>localStorage.setItem("osint_tool_exec",toolExec.checked?"1":"0");
   const aiTools=()=>({web:toolWeb.checked,exec:toolExec.checked});
   const aiHeaders=()=>({"Content-Type":"application/json","X-Auth-Token":localStorage.getItem("osint_token")||""});
+  // ---- core helpers: shared by Recommend / Improve-full / Improve-node ----
+  // Colors: green=add, amber=modify, red=delete. All three flows use these.
+  const escH = (s)=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;");
+  const clearHi = () => { try { cy.elements().removeClass("sug-add sug-mod sug-del flash-ok flash-no"); } catch(_){} };
+  const paintClasses = (cls) => {
+    const byId = (id) => cy.getElementById(String(id));
+    (cls.addN||[]).forEach(id=>{ const el=byId(id); if(el.length) el.addClass("sug-add"); });
+    (cls.modN||[]).forEach(id=>{ const el=byId(id); if(el.length) el.addClass("sug-mod"); });
+    (cls.delN||[]).forEach(id=>{ const el=byId(id); if(el.length) el.addClass("sug-del"); });
+    const markEdge = (s,t,c) => { try { cy.edges().filter(e=>e.source().id()===String(s)&&e.target().id()===String(t)).addClass(c); } catch(_){} };
+    (cls.addE||[]).forEach(e=>markEdge(e.s,e.t,"sug-add"));
+    (cls.modE||[]).forEach(e=>markEdge(e.s,e.t,"sug-mod"));
+    (cls.delE||[]).forEach(e=>markEdge(e.s,e.t,"sug-del"));
+  };
+  const flashIds = (ids, ms=1600) => {
+    ids.map(String).forEach(id=>{ const el=cy.getElementById(id); if(el.length){ el.addClass("flash-ok"); setTimeout(()=>{ try{el.removeClass("flash-ok");}catch(_){} }, ms); } });
+  };
+  const classifyOps = (ops) => {
+    const cls = { addN:new Set(), addE:[], modN:new Set(), modE:[], delN:new Set(), delE:[] };
+    for (const o of (ops||[])) {
+      if (o.op==="add_node" && (o.id||o.label)) cls.addN.add(String(o.id||o.label));
+      else if (o.op==="add_edge") cls.addE.push({s:String(o.source), t:String(o.target), rel:String(o.rel||"related")});
+      else if (o.op==="rename_node"||o.op==="set_attr") cls.modN.add(String(o.id));
+      else if (o.op==="delete_node" && o.id) cls.delN.add(String(o.id));
+      else if (o.op==="delete_edge") cls.delE.push({s:String(o.source), t:String(o.target)});
+    }
+    return cls;
+  };
+  const previewBanner = (counts) =>
+    `<div style="font-size:15px;font-weight:800;margin-bottom:8px;padding:10px;border-radius:10px;background:rgba(0,0,0,.4);border:1px solid var(--border)">` +
+    `<span style="color:#34d399">● ${counts.add} add</span> &nbsp; <span style="color:#fbbf24">● ${counts.mod} modify</span> &nbsp; <span style="color:#fb7185">● ${counts.del} delete</span>` +
+    `<div style="font-size:11px;font-weight:400;color:var(--dim);margin-top:2px">highlighted on graph in the same colors</div></div>`;
+  const countsOf = (cls, extraAdd=0) => ({
+    add: (cls.addN?.size||cls.addN?.length||0) + (cls.addE?.length||0) + extraAdd,
+    mod: (cls.modN?.size||cls.modN?.length||0) + (cls.modE?.length||0),
+    del: (cls.delN?.size||cls.delN?.length||0) + (cls.delE?.length||0),
+  });
+  // flash animation for single accept (green pop) + reject (red droop on card)
+  const blerp = (id) => {
+    const el = cy.getElementById(id);
+    if (!el.length) return;
+    el.addClass("flash-ok");
+    const w = el.data("width")||40;
+    try {
+      el.animation({ style:{ width:w*1.6, height:w*1.6, "overlay-opacity":0.5 }, duration:180, easing:"ease-out" })
+        .play().promise("completed").then(()=>el.animation({ style:{ width:w, height:w, "overlay-opacity":0 }, duration:320, easing:"ease-out" }).play());
+    } catch(_){}
+    setTimeout(()=>{ try{el.removeClass("flash-ok");}catch(_){} }, 900);
+  };
+  const droop = (cardEl) => {
+    if(!cardEl) return;
+    cardEl.style.transition="all .35s ease-in";
+    cardEl.style.transform="translateY(8px) scale(.92)"; cardEl.style.opacity="0.25";
+    cardEl.style.borderColor="var(--rose)";
+    setTimeout(()=>{ cardEl.style.opacity=".4"; },380);
+  };
   document.getElementById("recommendBtn").onclick = async () => {
     if (activeTab < 0) return;
     const data = tabs[activeTab].data;
@@ -690,8 +927,18 @@
       try { j = JSON.parse(txt); } catch(e) { throw new Error("Bad response: "+txt.slice(0,200)); }
       const recs = j.recs || [];
       const nodeSugs = j.nodes || j.nodeSugs || j.suggest_nodes || [];
-      const escH = (s)=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;");
-      box.innerHTML =
+      clearHi();
+      // immediately highlight what AI touched: endpoints glow green, banner large on top
+      const rCls = { addN:[], addE:[], modN:[], modE:[], delN:[], delE:[] };
+      const _ids = new Set(data.nodes.map(n=>n.id));
+      for (const r of recs) {
+        if (_ids.has(r.source)) rCls.modN.push(r.source); else rCls.addN.push(r.source);
+        if (_ids.has(r.target)) rCls.modN.push(r.target); else rCls.addN.push(r.target);
+        if (_ids.has(r.source) && _ids.has(r.target)) rCls.addE.push({s:r.source, t:r.target});
+      }
+      for (const s of nodeSugs) rCls.addN.push(String(s.id||s.label||s.name));
+      paintClasses(rCls);
+      box.innerHTML = previewBanner(countsOf(rCls)) +
         (nodeSugs.length ? `<div style="font-size:11px;color:var(--dim);margin-bottom:4px">● Suggested <b>NODES</b> (new entities)</div>` + nodeSugs.map((sug,i)=>{
           const label = sug.label||sug.id||sug.name||"node";
           return `<div data-card style="margin-bottom:8px;padding:8px;background:rgba(52,211,153,.08);border:1px dashed rgba(52,211,153,.4);border-radius:8px;font-size:12px;">
@@ -710,23 +957,7 @@
           <button data-skip="${i}" class="secondary" style="padding:4px 8px">Skip</button>
         </div>
       </div>`).join("") || (nodeSugs.length ? "" : "No recs"));
-      // green blerp (accept pop) vs red droop (reject shrink) animations
-      const blerp = (id) => {
-        const el = cy.getElementById(id);
-        if (!el.length) return;
-        el.addClass("flash-ok");
-        const w = el.data("width")||40;
-        el.animation({ style:{ width:w*1.6, height:w*1.6, "overlay-opacity":0.5 }, duration:180, easing:"ease-out" })
-          .play().promise("completed").then(()=>el.animation({ style:{ width:w, height:w, "overlay-opacity":0 }, duration:320, easing:"ease-out" }).play());
-        setTimeout(()=>el.removeClass("flash-ok"), 900);
-      };
-      const droop = (cardEl) => {
-        if(!cardEl) return;
-        cardEl.style.transition="all .35s ease-in";
-        cardEl.style.transform="translateY(8px) scale(.92)"; cardEl.style.opacity="0.25";
-        cardEl.style.borderColor="var(--rose)";
-        setTimeout(()=>{ cardEl.style.opacity=".4"; },380);
-      };
+      // blerp/droop come from core helpers above
       box.querySelectorAll("[data-nacc]").forEach(btn=>{
         btn.onclick = () => {
           const sug = nodeSugs[Number(btn.dataset.nacc)];
@@ -809,15 +1040,8 @@
       const j = await r.json();
       const ops = j.ops||[];
       if(!ops.length){ box.innerHTML="No improvements suggested."+(j.error?" ("+j.error+")":""); return; }
-      // classify ops so preview can color them: green=add, amber=modify, red=delete
-      const cls = { addN:new Set(), addE:[], modN:new Set(), modE:[], delN:new Set(), delE:[] };
-      for (const o of ops) {
-        if (o.op==="add_node" && o.id) cls.addN.add(String(o.id));
-        else if (o.op==="add_edge") cls.addE.push({s:String(o.source), t:String(o.target), rel:String(o.rel||"related")});
-        else if (o.op==="rename_node"||o.op==="set_attr") cls.modN.add(String(o.id));
-        else if (o.op==="delete_node" && o.id) cls.delN.add(String(o.id));
-        else if (o.op==="delete_edge") cls.delE.push({s:String(o.source), t:String(o.target)});
-      }
+      // classify via core helper: green=add, amber=modify, red=delete
+      const cls = classifyOps(ops);
       // preview: apply adds+mods live (highlighted), keep deletes as red ghosts (removed only on accept)
       const previewHi = () => {
         const clone = JSON.parse(before);
@@ -835,7 +1059,7 @@
         return log.concat(delLog);
       };
       const log = previewHi();
-      box.innerHTML = `<div style="font-size:12px;margin-bottom:6px">AI suggests ${log.length} change(s) — <span style="color:#34d399">● add</span> <span style="color:#fbbf24">● modify</span> <span style="color:#fb7185">● delete</span> (highlighted on graph)<br/>
+      box.innerHTML = previewBanner(countsOf(cls)) + `<div style="font-size:12px;margin-bottom:6px">AI suggests ${log.length} change(s) (highlighted on graph)<br/>
         <button id="applyImprove" class="secondary" style="padding:4px 12px;border-color:#34d399;color:#34d399;font-weight:700">✓ Accept changes</button>
         <button id="discardImprove" class="secondary" style="padding:4px 12px">✕ Reject</button></div>` +
         log.map(l=>`<div style="font-size:11px;color:var(--dim)">• ${l}</div>`).join("");
@@ -845,6 +1069,7 @@
         const full = JSON.parse(before);
         const alog = applyOps(full, ops);
         tabs[activeTab].data = full; renderActive(); populateRelDropdowns();
+        try { chainAdd({kind:"improve", prompt:(document.getElementById("improveInput").value||"AI improve").slice(0,300), summary:`${alog.length} op(s): `+alog.slice(0,3).join(" · "), touch:[...cls.addN, ...cls.modN].map(String).slice(0,25), before}); } catch(_){}
         // green confirm flash on everything the AI touched, then clean classes
         [...cls.addN, ...cls.modN].forEach(id=>{ const el=cy.getElementById(id); if(el.length){ el.addClass("flash-ok"); setTimeout(()=>el.removeClass("flash-ok"),1600); } });
         box.innerHTML=`Accepted ${alog.length} change(s) ✓ <span style="color:var(--dim)">(⟲ undo: Ctrl+←)</span> <button id="undoImprove" class="secondary" style="padding:2px 8px">Undo</button>`;
@@ -913,8 +1138,11 @@
       const username = document.getElementById("username").value.trim();
       const r = await fetch(BACKEND+"/build", { method:"POST", headers:{"Content-Type":"application/json","X-Username":username,"X-Auth-Token":localStorage.getItem("osint_token")||""}, body: JSON.stringify({text, username}) });
       const data = await r.json();
+      const beforeGo = activeTab >= 0 ? JSON.stringify(tabs[activeTab].data) : null;
+      pushHist();
       render(data, text.slice(0,24));
       populateRelDropdowns();
+      try { chainAdd({kind:"build", prompt:text.slice(0,300), summary:`+${(data.nodes||[]).length}n +${(data.edges||[]).length}e → ${tabs[activeTab].name}`, touch:(data.nodes||[]).map(n=>String(n.id??n.label)).slice(0,25), before:beforeGo}); } catch(_){}
       // update url
       const enc = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
       const url = new URL(window.location.href);
@@ -1075,13 +1303,211 @@
       const ops=j.ops||[];
       if(!ops.length){ box.innerHTML="No improvements."+(j.error?" ("+j.error+")":""); return; }
       const data=tabs[activeTab].data, before=JSON.stringify(data);
+      pushHist();
       const log=applyOps(data, ops);
       renderActive(); populateRelDropdowns();
-      box.innerHTML=`<div style="font-size:12px;margin-bottom:6px">Node ${nid}: applied ${log.length} ops <button id="undoNode" class="secondary" style="padding:2px 8px">Undo</button></div>`+
+      clearHi();
+      const nCls = classifyOps(ops);
+      paintClasses(nCls);
+      flashIds([...nCls.addN, ...nCls.modN]);
+      try { chainAdd({kind:"improve-node", prompt:(document.getElementById("improveInput").value||"improve node "+nid).slice(0,300), summary:`node ${nid}: ${log.length} op(s): `+log.slice(0,3).join(" · "), touch:[...nCls.addN, ...nCls.modN].map(String).slice(0,25), before}); } catch(_){}
+      box.innerHTML=previewBanner(countsOf(nCls))+`<div style="font-size:12px;margin-bottom:6px">Node ${escH(nid)}: applied ${log.length} ops <button id="undoNode" class="secondary" style="padding:2px 8px">Undo</button></div>`+
         log.map(l=>`<div style="font-size:11px;color:var(--dim)">• ${l}</div>`).join("");
       document.getElementById("undoNode").onclick=()=>{ tabs[activeTab].data=JSON.parse(before); renderActive(); populateRelDropdowns(); };
     }catch(e){ box.innerHTML="Error: "+e.message; }
   };
+  // ---- duel: ◧ standardizer (clean) vs ◨ visionary (expand) + freeform steer box ----
+  // reductionist: one endpoint, shared op language, sides tagged std/vis, fun score loop
+  const duelTa = document.getElementById("duelDirective");
+  duelTa.style.cssText = "width:100%;background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px;font-size:12px;font-family:inherit;resize:none;overflow:hidden";
+  duelTa.oninput = () => { duelTa.style.height = "auto"; duelTa.style.height = Math.min(120, duelTa.scrollHeight) + "px"; };
+  let duelScore = JSON.parse(localStorage.getItem("osint_duel_score") || '{"std":0,"vis":0}');
+  let duelPending = null, duelBefore = null;
+  const paintDuel = (flash) => {
+    document.getElementById("duelScore").textContent = `◧${duelScore.std} : ${duelScore.vis}◨`;
+    if (flash) {
+      const mid = document.getElementById("duelVsMid");
+      mid.style.transition = "none"; mid.style.transform = "scale(1.35)"; mid.style.background = flash;
+      setTimeout(() => { mid.style.transition = "all .4s"; mid.style.transform = "scale(1)"; }, 60);
+    }
+  };
+  paintDuel();
+  document.getElementById("duelBtn").onclick = async () => {
+    if (activeTab < 0) return;
+    const data = tabs[activeTab].data, box = document.getElementById("recs");
+    duelBefore = JSON.stringify(data);
+    const btn = document.getElementById("duelBtn");
+    btn.textContent = "⚔ dueling…"; btn.disabled = true;
+    paintDuel("rgba(167,139,250,.35)");
+    clearHi();
+    try {
+      const r = await fetch(BACKEND + "/duel", { method: "POST", headers: aiHeaders(),
+        body: JSON.stringify({ input: document.getElementById("improveInput").value, directive: duelTa.value,
+          nodes: data.nodes, edges: data.edges, tools: aiTools() }) });
+      const j = await r.json();
+      const ops = j.ops || [];
+      if (!ops.length) { box.innerHTML = "Duel fizzled — no ops." + (j.error ? ` (${escH(j.error)})` : ""); return; }
+      duelPending = ops;
+      const stdN = ops.filter(o => o.side === "std").length, visN = ops.filter(o => o.side === "vis").length;
+      // preview: apply all, paint std=amber/green-ish vs vis=violet-green via shared helpers
+      pushHist();
+      const clone = JSON.parse(duelBefore);
+      const log = applyOps(clone, ops.filter(o => o.op !== "delete_node" && o.op !== "delete_edge"));
+      tabs[activeTab].data = clone; renderActive(); populateRelDropdowns();
+      const cls = classifyOps(ops);
+      paintClasses(cls);
+      // tint visionary adds violet: re-mark vis add_nodes
+      ops.filter(o => o.side === "vis" && o.op === "add_node").forEach(o => {
+        const el = cy.getElementById(String(o.id || o.label)); if (el.length) { el.removeClass("sug-add"); el.addClass("flash-ok"); }
+      });
+      box.innerHTML = previewBanner(countsOf(cls)) +
+        `<div style="display:flex;gap:6px;margin-bottom:6px;font-size:12px">
+          <span style="flex:1;background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.4);border-radius:8px;padding:6px">◧ Standardizer: <b>${stdN}</b> op(s)</span>
+          <span style="flex:1;background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.4);border-radius:8px;padding:6px">◨ Visionary: <b>${visN}</b> op(s)</span>
+        </div>` + log.slice(0, 12).map(l => `<div style="font-size:11px;color:var(--dim)">• ${escH(l)}</div>`).join("") +
+        `<div style="font-size:11px;color:var(--dim);margin-top:4px">👁 preview live on graph — hit ✓ Accept in the Duel card (or Reject below)</div>
+         <button id="duelReject" class="secondary" style="padding:4px 12px">✕ Reject</button>`;
+      document.getElementById("duelAccept").style.display = "";
+      document.getElementById("duelReject").onclick = () => {
+        tabs[activeTab].data = JSON.parse(duelBefore); renderActive(); populateRelDropdowns();
+        clearHi(); duelPending = null; document.getElementById("duelAccept").style.display = "none";
+        box.innerHTML = "Rejected — graph untouched."; aiTerm("sys", "duel rejected (graph untouched)");
+      };
+      aiTerm("sys", `duel round: ◧${stdN} vs ◨${visN} — preview live, accept to score`);
+    } catch (e) { box.innerHTML = "Error: " + escH(e.message); }
+    btn.textContent = "⚔ Duel round"; btn.disabled = false;
+  };
+  document.getElementById("duelAccept").onclick = () => {
+    if (!duelPending || activeTab < 0) return;
+    const full = JSON.parse(duelBefore);
+    const alog = applyOps(full, duelPending);
+    tabs[activeTab].data = full; renderActive(); populateRelDropdowns(); clearHi();
+    const stdN = duelPending.filter(o => o.side === "std").length, visN = duelPending.filter(o => o.side !== "std").length;
+    const winner = stdN === visN ? null : (stdN > visN ? "std" : "vis");
+    if (winner) { duelScore[winner]++; localStorage.setItem("osint_duel_score", JSON.stringify(duelScore)); }
+    paintDuel(winner === "std" ? "rgba(52,211,153,.5)" : winner === "vis" ? "rgba(167,139,250,.5)" : "rgba(255,255,255,.15)");
+    flashIds(full.nodes.slice(-6).map(n => n.id));
+    try { chainAdd({ kind: "duel", prompt: ("duel ◧" + stdN + " vs ◨" + visN + (duelTa.value ? " — " + duelTa.value : "")).slice(0, 300), summary: `${alog.length} ops, winner: ${winner || "draw"}`, touch: full.nodes.slice(-8).map(n => String(n.id)), before: duelBefore }); } catch (_) {}
+    document.getElementById("recs").innerHTML = `🏆 ${winner === "std" ? "◧ Standardizer wins the round!" : winner === "vis" ? "◨ Visionary wins the round!" : "🤝 Draw!"} <span style="color:var(--dim)">(${alog.length} ops · ◧${duelScore.std}:${duelScore.vis}◨)</span>`;
+    aiTerm("sys", `duel accepted: ${alog.length} ops, winner ${winner || "draw"} (◧${duelScore.std}:${duelScore.vis}◨)`);
+    duelPending = null; document.getElementById("duelAccept").style.display = "none";
+  };
+  // ---- node page: living page + context chat per node (split view, SpacetimeDB-backed) ----
+  // Each node is half pain of view: graph left, page right. Chat accumulates context;
+  // page is refined from it over time. sqlite now, dual-written to SpacetimeDB.
+  let pageNode = null;
+  const npUser = () => document.getElementById("username").value.trim() || localStorage.getItem("osint_user") || "";
+  const openNodePage = async (id, tab = null) => {
+    if (activeTab < 0) return;
+    const d = tabs[activeTab].data;
+    const n = d.nodes.find(x => x.id === id);
+    if (!n) return;
+    pageNode = id;
+    document.getElementById("nodePage").classList.add("open");
+    document.getElementById("npTitle").textContent = "📄 " + (n.label || id);
+    document.getElementById("npSub").textContent = `${n.kind || "Concept"} · id ${id} · saved per user`;
+    if (tab) switchNpTab(tab);
+    document.getElementById("npSaved").textContent = "loading…";
+    try {
+      const r = await fetch(BACKEND + "/api/node-page?node=" + encodeURIComponent(id) + "&user=" + encodeURIComponent(npUser()));
+      const p = await r.json();
+      document.getElementById("npName").value = p.title || n.label || "";
+      document.getElementById("npKind").value = p.kind || n.kind || "";
+      if (!document.getElementById("npBody").dataset.dirty || !document.getElementById("npBody").value)
+        document.getElementById("npBody").value = p.body || "";
+      document.getElementById("npBody").dataset.dirty = "";
+      document.getElementById("npSaved").textContent = p.updated ? ("saved ✓ " + new Date(p.updated * 1000).toLocaleString()) : "new page — write + save";
+    } catch (e) { document.getElementById("npSaved").textContent = "offline — will save on reconnect"; }
+    loadNodeChat();
+  };
+  const switchNpTab = (tab) => {
+    const chat = tab === "chat";
+    document.getElementById("npPanePage").style.display = chat ? "none" : "flex";
+    document.getElementById("npPaneChat").style.display = chat ? "flex" : "none";
+    document.getElementById("npTabPage").classList.toggle("on", !chat);
+    document.getElementById("npTabChat").classList.toggle("on", chat);
+  };
+  document.getElementById("npTabPage").onclick = () => switchNpTab("page");
+  document.getElementById("npTabChat").onclick = () => switchNpTab("chat");
+  document.getElementById("npClose").onclick = () => { document.getElementById("nodePage").classList.remove("open"); pageNode = null; };
+  document.getElementById("npBody").oninput = (e) => { e.target.dataset.dirty = "1"; document.getElementById("npSaved").textContent = "editing… (unsaved)"; };
+  document.getElementById("npSave").onclick = async () => {
+    if (!pageNode) return;
+    const btn = document.getElementById("npSave");
+    btn.textContent = "saving…";
+    try {
+      const r = await fetch(BACKEND + "/api/node-page", { method: "POST", headers: aiHeaders(),
+        body: JSON.stringify({ node: pageNode, username: npUser(), title: document.getElementById("npName").value, kind: document.getElementById("npKind").value, body: document.getElementById("npBody").value }) });
+      const p = await r.json();
+      document.getElementById("npBody").dataset.dirty = "";
+      document.getElementById("npSaved").textContent = "saved ✓ " + new Date().toLocaleTimeString() + " → SpacetimeDB";
+      aiTerm("sys", `page saved: ${pageNode} (${(p.body || "").length} chars)`);
+    } catch (e) { document.getElementById("npSaved").textContent = "save failed: " + e.message; }
+    btn.textContent = "✓ Save page";
+  };
+  const loadNodeChat = async () => {
+    if (!pageNode) return;
+    const box = document.getElementById("npMsgs");
+    try {
+      const r = await fetch(BACKEND + "/api/node-chat?node=" + encodeURIComponent(pageNode) + "&user=" + encodeURIComponent(npUser()) + "&limit=200");
+      const j = await r.json();
+      const msgs = j.msgs || [];
+      box.innerHTML = msgs.length ? msgs.map(m => `<div class="m ${m.role}"><div class="t">${m.role === "user" ? "you" : "ai"} · ${new Date(m.created * 1000).toLocaleTimeString()}</div>${escH(m.text)}</div>`).join("") : `<div style="color:var(--dim);font-size:12px">No context yet — ask something below. Every message is saved to this node's thread.</div>`;
+      box.scrollTop = box.scrollHeight;
+    } catch (e) { box.innerHTML = `<div style="color:var(--dim);font-size:12px">chat offline</div>`; }
+  };
+  const sendNodeChat = async () => {
+    if (!pageNode) return;
+    const inp = document.getElementById("npInput");
+    const text = inp.value.trim();
+    if (!text) return;
+    inp.value = "";
+    const box = document.getElementById("npMsgs");
+    box.innerHTML += `<div class="m user"><div class="t">you · now</div>${escH(text)}</div>`;
+    box.scrollTop = box.scrollHeight;
+    try {
+      await fetch(BACKEND + "/api/node-chat", { method: "POST", headers: aiHeaders(), body: JSON.stringify({ node: pageNode, username: npUser(), role: "user", text }) });
+      // AI answers with the page + thread as context, then refines the page draft
+      const d = tabs[activeTab].data;
+      const n = d.nodes.find(x => x.id === pageNode);
+      const nb = n ? d.edges.filter(e => e.source === pageNode || e.target === pageNode).map(e => `${e.source} —${e.rel}→ ${e.target}`).join("; ") : "";
+      const page = document.getElementById("npBody").value || "";
+      const r = await fetch(BACKEND + "/zero", { method: "POST", headers: aiHeaders(), body: JSON.stringify({ q: `Node under discussion: "${n ? n.label : pageNode}" (${n ? n.kind : ""}). Relations: ${nb || "none"}. Current page draft: ${page.slice(0, 2000) || "(empty)"}. User says: ${text}. Answer conversationally AND end with a refined page draft idea if the page is thin.`, ctx: "node-page chat" }) });
+      const j = await r.json();
+      const ans = (j.text || "").trim() || "(no answer — check AI key)";
+      await fetch(BACKEND + "/api/node-chat", { method: "POST", headers: aiHeaders(), body: JSON.stringify({ node: pageNode, username: npUser(), role: "assistant", text: ans.slice(0, 4000) }) });
+      aiTerm("sys", `page chat: +2 msgs on ${pageNode}`);
+    } catch (e) { aiTerm("sys", "page chat error: " + e.message); }
+    loadNodeChat();
+  };
+  document.getElementById("npSend").onclick = sendNodeChat;
+  document.getElementById("npInput").addEventListener("keydown", (e) => { if (e.key === "Enter") sendNodeChat(); });
+  document.getElementById("npRefine").onclick = async () => {
+    if (!pageNode) return;
+    const btn = document.getElementById("npRefine");
+    btn.textContent = "refining…";
+    try {
+      const cr = await fetch(BACKEND + "/api/node-chat?node=" + encodeURIComponent(pageNode) + "&user=" + encodeURIComponent(npUser()) + "&limit=200");
+      const cj = await cr.json();
+      const thread = (cj.msgs || []).map(m => `${m.role}: ${m.text}`).join("\n").slice(0, 6000);
+      const d = tabs[activeTab].data;
+      const n = d.nodes.find(x => x.id === pageNode);
+      const r = await fetch(BACKEND + "/zero", { method: "POST", headers: aiHeaders(), body: JSON.stringify({ q: `Rewrite and improve the living page for node "${n ? n.label : pageNode}" (${n ? n.kind : ""}). Full chat thread:\n${thread || "(no chat yet)"}\n\nReply with ONLY the improved page body (markdown, no preamble).`, ctx: "node-page refine" }) });
+      const j = await r.json();
+      if ((j.text || "").trim()) {
+        document.getElementById("npBody").value = j.text.trim().slice(0, 20000);
+        document.getElementById("npBody").dataset.dirty = "1";
+        document.getElementById("npSaved").textContent = "refined by AI — review + save ✓";
+        aiTerm("sys", `page refined: ${pageNode} (review + save)`);
+      }
+    } catch (e) { aiTerm("sys", "refine error: " + e.message); }
+    btn.textContent = "✨ Refine with AI";
+  };
+  // sidebar node rows click → open page (graph stays left, page opens right)
+  document.getElementById("nodes").addEventListener("click", (e) => {
+    const row = e.target.closest("[data-node]");
+    if (row) openNodePage(row.dataset.node, "page");
+  });
   // PNG export (cytoscape render)
   document.getElementById("pngBtn").onclick = () => {
     if (activeTab < 0) return;
@@ -1183,8 +1609,44 @@
       if (pathMode || pathAnchor) { pathMode=false; pathAnchor=null; cy.elements().removeClass("anchor"); paintHint(); }
     }
   });
-  let ctxNode=null;
+  let ctxNode=null, ctxEdge=null;
+  const showCtx = (rp) => {
+    const pw = panel.clientWidth, ph = panel.clientHeight;
+    ctxMenu.style.display = "block";
+    ctxMenu.style.left = Math.max(8, Math.min(rp.x + 12, pw - 244)) + "px";
+    ctxMenu.style.top = Math.max(8, Math.min(rp.y + 12, ph - 300)) + "px";
+  };
   const SHOT_DEFAULT = "Explain this selection in plain English: what is it and why does it matter?";
+  // 3 configurable hot prompts: left-click = run, right-click = edit (emoji/title/text). Stored locally.
+  const HOT_DEFAULTS = [
+    { emoji: "🔍", title: "Explain", text: SHOT_DEFAULT },
+    { emoji: "🕸️", title: "Relate", text: "How are these selected entities connected? List direct and indirect links in plain English." },
+    { emoji: "🚩", title: "Red-team", text: "Red-team this selection: flag false correlations, weak evidence, and what to verify next." },
+  ];
+  const loadHots = () => {
+    try {
+      const h = JSON.parse(localStorage.getItem("osint_hot_prompts") || "null");
+      if (Array.isArray(h) && h.length === 3 && h.every(x => x && x.text)) return h;
+    } catch (_) {}
+    return JSON.parse(JSON.stringify(HOT_DEFAULTS));
+  };
+  let hotPrompts = loadHots();
+  const saveHots = () => { try { localStorage.setItem("osint_hot_prompts", JSON.stringify(hotPrompts)); } catch (_) {} };
+  const runHot = (promptText) => {
+    const d = tabs[activeTab].data;
+    const prompt = (promptText || "").trim() || SHOT_DEFAULT;
+    const sel = cy.$("node:selected").map(x => ({ id: x.id(), label: x.data("label"), kind: x.data("kind") }));
+    const subEdges = cy.$("edge:selected,node:selected").edgesWith(cy.$("node:selected")).map(x => ({ source: x.source().id(), target: x.target().id(), rel: x.data("rel") }));
+    const allEdges = d.edges.map(x => ({ source: x.source, target: x.target, rel: x.rel }));
+    try { localStorage.setItem("osint_0shot_handoff", JSON.stringify({ focus: { kind: "multi", nodes: sel }, edges: allEdges, subEdges, prompt, at: Date.now() })); } catch (err) {}
+    const q = prompt + "\n\n[selected nodes: " + sel.map(s => s.label + " (" + s.id + ")").join(", ") + "]"
+      + (subEdges.length ? "\n[involved relations: " + subEdges.map(x => x.source + " —" + x.rel + "→ " + x.target).join("; ") + "]" : "");
+    aiTerm("sys", `0shot handoff: ${sel.length} node(s) + ${allEdges.length} edge(s) context (English answer)`);
+    window.open("0shot.html?q=" + encodeURIComponent(q) + "&format=answer&from=graph", "_blank");
+  };
+  const hotBtnsHTML = () => `<div style="display:flex;gap:4px;margin-top:2px">` + hotPrompts.map((h, i) =>
+    `<button data-hot="${i}" class="act" style="flex:1;justify-content:center;font-size:18px;padding:8px 4px" title="${String(h.title || "").replace(/"/g, "&quot;")} — right-click to edit&#10;${String(h.text || "").slice(0, 120).replace(/</g, "&lt;")}">${String(h.emoji || "•")}</button>`).join("") + `</div>
+      <div style="font-size:10px;color:var(--dim);padding:2px 4px 0">left-click = run · right-click = edit</div>`;
   cy.on("cxttap","node",(e)=>{
     const n=e.target; ctxNode=n.id();
     if (!n.selected()) n.select(); // right-click adds to multi-select
@@ -1194,24 +1656,49 @@
     const selIds = cy.$("node:selected").map(x=>x.id());
     ctxMenu.innerHTML=`<div class="hd">● ${n.data("label")} · ${selIds.length} selected${pathAnchor?` · ⚓ ${pathAnchor}`:""}</div>
       <div class="sec">Ask 0shot (English)</div>
-      <textarea id="ctxPrompt" rows="2">${savedPrompt.replace(/</g,"&lt;")}</textarea>
+      ${hotBtnsHTML()}
+      <textarea id="ctxPrompt" rows="2" style="margin-top:6px" placeholder="…or type something new here (custom, saved separately)">${savedPrompt.replace(/</g,"&lt;")}</textarea>
       <button data-act="shot" class="act go">🚀 Run in new tab</button>
-      <div class="sec">Path${pathAnchor?` · ⚓ ${pathAnchor} → ${ctxNode}`:""}</div>
-      <button data-act="anchor" class="act">📍 ${pathAnchor===ctxNode?"✓ Anchor here (tap B → path)":"Start path here (A)"}</button>
-      <button data-act="path" class="act">🛤 ${pathAnchor&&pathAnchor!==ctxNode?`Finish path → ${ctxNode}`:"Pick path to here (needs A)"}</button>
-      <button data-act="relpath" class="act">✏️ Label this path…</button>
       <div class="sec">Node</div>
-      <div style="display:flex;gap:4px">
-      <button data-act="rename" class="act" style="flex:1" title="Rename">✏️</button>
-      <button data-act="dup" class="act" style="flex:1" title="Duplicate">⧉</button>
-      <button data-act="del" class="act" style="flex:1;color:#fb7185" title="Delete">🗑</button></div>`;
+      <button data-act="page" class="act go" style="margin-bottom:2px">📄 Open living page</button>
+      <button data-act="rename" class="act">✏️ Rename node…</button>
+      <button data-act="dup" class="act">⧉ Duplicate node</button>
+      <button data-act="del" class="act" style="color:#fb7185">🗑 Delete node</button>`;
     ctxMenu.style.display="block";
     ctxMenu.style.left=Math.max(8,Math.min(rp.x+12, pw-244))+"px";
     ctxMenu.style.top=Math.max(8,Math.min(rp.y+12, ph-320))+"px";
     const ta = ctxMenu.querySelector("#ctxPrompt");
     ta.oninput = ()=>localStorage.setItem("osint_0shot_prompt", ta.value);
     ta.onclick = (ev)=>ev.stopPropagation();
-    ctxMenu.querySelectorAll("button").forEach(b=>b.onclick=()=>{
+    // hot buttons: left = run, right = edit inline (emoji/title/text), no delete needed
+    ctxMenu.querySelectorAll("[data-hot]").forEach(b => {
+      b.onclick = (ev) => { ev.stopPropagation(); runHot(hotPrompts[Number(b.dataset.hot)].text); ctxMenu.style.display = "none"; };
+      b.oncontextmenu = (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
+        const i = Number(b.dataset.hot), h = hotPrompts[i];
+        ctxMenu.innerHTML = `<div class="hd">Edit hot button ${i + 1}</div>
+          <div style="display:flex;gap:4px;margin-bottom:4px">
+            <input id="hotEmoji" value="${String(h.emoji || "").replace(/"/g, "&quot;")}" style="width:44px;text-align:center;font-size:18px;background:rgba(0,0,0,.4);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px" title="emoji" />
+            <input id="hotTitle" value="${String(h.title || "").replace(/"/g, "&quot;")}" placeholder="title (hover text)" style="flex:1;background:rgba(0,0,0,.4);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:12px" />
+          </div>
+          <textarea id="hotText" rows="3" placeholder="prompt text…">${String(h.text || "").replace(/</g, "&lt;")}</textarea>
+          <div style="display:flex;gap:4px;margin-top:6px">
+            <button id="hotSave" class="act go" style="flex:1">✓ Save</button>
+            <button id="hotCancel" class="act" style="flex:1;justify-content:center">Cancel</button>
+          </div>`;
+        ctxMenu.querySelector("#hotCancel").onclick = () => ctxMenu.style.display = "none";
+        ctxMenu.querySelector("#hotSave").onclick = () => {
+          hotPrompts[i] = {
+            emoji: ctxMenu.querySelector("#hotEmoji").value.trim() || "•",
+            title: ctxMenu.querySelector("#hotTitle").value.trim() || ("Hot " + (i + 1)),
+            text: ctxMenu.querySelector("#hotText").value.trim() || HOT_DEFAULTS[i].text,
+          };
+          saveHots(); ctxMenu.style.display = "none";
+          aiTerm("sys", `hot button ${i + 1} saved: ${hotPrompts[i].emoji} ${hotPrompts[i].title}`);
+        };
+      };
+    });
+    ctxMenu.querySelectorAll("button:not([data-hot])").forEach(b=>b.onclick=()=>{
       const d=tabs[activeTab].data; const act=b.dataset.act;
       const node=d.nodes.find(x=>x.id===ctxNode);
       if(act==="shot"){
@@ -1225,26 +1712,45 @@
         aiTerm("sys",`0shot handoff: ${sel.length} node(s) + ${allEdges.length} edge(s) context (English answer)`);
         window.open("0shot.html?q="+encodeURIComponent(q)+"&format=answer&from=graph", "_blank");
       }
-      else if(act==="anchor"){ pathAnchor=ctxNode; cy.elements().removeClass("anchor"); const an=cy.getElementById(ctxNode); if(an.length) an.addClass("anchor"); paintHint(); aiTerm("sys","path anchor ⚓ "+pathAnchor+" — right-click a second node → Finish path"); }
-      else if(act==="path"){ if(!pathAnchor){ aiTerm("sys","tap 'Start path here (A)' on this node first, then right-click B → Finish path"); } else if(pathAnchor===ctxNode){ aiTerm("sys","anchor is this node — right-click a DIFFERENT node → Finish path"); } else { selectPath(pathAnchor, ctxNode); cy.elements().removeClass("anchor"); pathAnchor=null; pathMode=false; paintHint(); } }
-      else if(act==="relpath"){
-        const selE = cy.$("edge:selected");
-        if(!selE.length){ alert("No path/edges selected — right-click a node → Select path first."); return; }
-        const v = prompt(`Set relation word for all ${selE.length} edge(s) of the path:`, selE[0].data("rel")||"related");
-        if(v && v.trim()){
-          pushHist();
-          const ids = selE.map(x=>x.source().id()+"|"+x.target().id());
-          let n=0;
-          for(const de of d.edges){ if(ids.includes(de.source+"|"+de.target)){ de.rel=v.trim(); n++; } }
-          aiTerm("sys",`path relation set: ${n} edge(s) → (${v.trim()}) — ⟲ undo available (Ctrl+←)`);
-          renderActive(); populateRelDropdowns();
-        }
-      }
       else if(act==="del"){ pushHist(); d.nodes=d.nodes.filter(x=>x.id!==ctxNode); d.edges=d.edges.filter(x=>x.source!==ctxNode&&x.target!==ctxNode); }
       else if(act==="dup"&&node){ pushHist(); const c=JSON.parse(JSON.stringify(node)); c.id=node.id+"_copy"+Date.now()%10000; c.label=node.label+" (copy)"; c.data={...c.data,id:c.id,label:c.label}; d.nodes.push(c); }
       else if(act==="rename"&&node){ const v=prompt("Rename node:",node.label); if(v){ pushHist(); node.label=v; node.data.label=v;} }
-      if(act!=="shot"){ ctxMenu.style.display="none"; if(act!=="anchor"&&act!=="path") { renderActive(); populateRelDropdowns(); } }
+      else if(act==="page"){ ctxMenu.style.display="none"; openNodePage(ctxNode, "page"); return; }
+      if(act!=="shot"){ ctxMenu.style.display="none"; { renderActive(); populateRelDropdowns(); } }
       else ctxMenu.style.display="none";
+    });
+  });
+  // edge right-click: same simple menu — rename relation / delete edge
+  cy.on("cxttap","edge",(e)=>{
+    const el=e.target;
+    if (!el.selected()) el.select();
+    paintSelection();
+    const s=el.source().id(), t=el.target().id(), rel=el.data("rel")||el.data("label")||"related";
+    ctxEdge={s, t, rel}; ctxNode=null;
+    ctxMenu.innerHTML=`<div class="hd">↳ ${s} —(${rel})→ ${t}</div>
+      <div class="sec">Relation</div>
+      <input id="edgeRel" value="${String(rel).replace(/"/g,"&quot;")}" style="width:100%;box-sizing:border-box;background:rgba(0,0,0,.4);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:12px;font-family:inherit" />
+      <button data-act="redge" class="act go" style="margin-top:6px">✏️ Rename relation</button>
+      <button data-act="dedge" class="act" style="color:#fb7185">🗑 Delete edge</button>`;
+    showCtx(e.renderedPosition);
+    ctxMenu.querySelectorAll("button").forEach(b=>b.onclick=()=>{
+      if(b.dataset.act==="redge"||b.dataset.act==="dedge"){
+        // reuse node handler logic via synthetic dispatch: handle directly here
+        const d=tabs[activeTab].data; const act=b.dataset.act;
+        if(act==="redge"){
+          const v=(ctxMenu.querySelector("#edgeRel").value||"").trim()||rel;
+          pushHist();
+          let n=0;
+          for(const de of d.edges){ if(de.source===s&&de.target===t&&(de.rel===rel||true)){ de.rel=v; n++; } }
+          aiTerm("sys",`renamed ${n} edge(s) → (${v}) — ⟲ undo available (Ctrl+←)`);
+        } else {
+          pushHist();
+          const before=d.edges.length;
+          d.edges=d.edges.filter(de=>!(de.source===s&&de.target===t));
+          aiTerm("sys",`deleted ${before-d.edges.length} edge(s) ${s} → ${t} — ⟲ undo available (Ctrl+←)`);
+        }
+        ctxMenu.style.display="none"; renderActive(); populateRelDropdowns();
+      }
     });
   });
   // export: graph -> clean JSON -> file in one smooth flow (timestamped name, status in log)
@@ -1304,6 +1810,7 @@
   renderActive();
   populateRelDropdowns();
   renderTabs();
+  try { paintChain(); } catch(_){}
   if (restored) aiTerm("sys","restored "+tabs.length+" layer(s) from localStorage");
 </script>
 <style>
@@ -1321,6 +1828,38 @@
 #aiTermTools button{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:#e2e8f0;border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;}
 </style>
 <div id="aiTerm"><div id="aiTermHead"><span id="aiTermDot"></span><span>AI LOG</span><span id="aiTermCount" style="opacity:.8">0 events</span><span id="aiTermTools"><input id="aiTermFilter" placeholder="filter history…" title="filter log lines"/><button id="aiTermCopy" title="copy filtered log">⧉</button><button id="aiTermClear" title="clear log">✕</button></span><span style="opacity:.7">▲▼ toggle</span></div><div id="aiTermBody"></div></div>
+<!-- node page split-view: living page + context chat per node (SpacetimeDB-backed) -->
+<div id="nodePage">
+  <div style="display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border)">
+    <span style="font-size:18px">📄</span>
+    <div style="flex:1;min-width:0"><div id="npTitle" style="font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Node page</div>
+    <div id="npSub" style="font-size:11px;color:var(--dim)">select a node to dive in</div></div>
+    <div id="nodePageTabs" style="flex:0 0 auto"><button id="npTabPage" class="on">Page</button><button id="npTabChat">Chat</button></div>
+    <button id="npClose" class="secondary" style="background:rgba(255,255,255,.08);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;cursor:pointer">✕</button>
+  </div>
+  <div style="padding:12px 14px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:10px">
+    <div id="npPanePage" style="display:flex;flex-direction:column;gap:8px">
+      <input id="npName" placeholder="page title" style="background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:14px;font-weight:700;font-family:inherit" />
+      <div style="display:flex;gap:6px">
+        <input id="npKind" placeholder="kind" style="flex:0 0 130px;background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:12px;font-family:inherit" />
+        <span id="npSaved" style="flex:1;font-size:11px;color:var(--dim);align-self:center"></span>
+      </div>
+      <textarea id="npBody" rows="14" placeholder="Living notes for this node — context, evidence, open questions… (refined over time)" style="background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:13px;line-height:1.6;font-family:inherit;resize:vertical"></textarea>
+      <div style="display:flex;gap:6px">
+        <button id="npSave" class="secondary" style="flex:1;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.4);color:#34d399;border-radius:8px;padding:8px;font-weight:800;cursor:pointer">✓ Save page</button>
+        <button id="npRefine" class="secondary" style="flex:1;background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.4);color:#a78bfa;border-radius:8px;padding:8px;font-weight:800;cursor:pointer">✨ Refine with AI</button>
+      </div>
+    </div>
+    <div id="npPaneChat" style="display:none;flex-direction:column;gap:8px">
+      <div id="npMsgs"></div>
+      <div style="display:flex;gap:6px">
+        <input id="npInput" placeholder="ask / add context about this node… (Enter to send)" style="flex:1;background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:13px;font-family:inherit" />
+        <button id="npSend" class="secondary" style="background:linear-gradient(135deg,#0284c7,#7c3aed);color:#fff;border:none;border-radius:8px;padding:0 16px;font-weight:800;cursor:pointer">➤</button>
+      </div>
+      <div style="font-size:11px;color:var(--dim)">Chat is saved per node — it becomes the context the page is refined from.</div>
+    </div>
+  </div>
+</div>
 <script>
 (function(){
   let n=0, open=true, hist=[];
@@ -1345,7 +1884,7 @@
     while(body.children.length>200) body.firstChild.remove();
     if(open) body.scrollTop=body.scrollHeight;
   };
-  const AI_PATHS=["/build","/recommend","/improve","/investigate","/define","/exec","/login"];
+  const AI_PATHS=["/build","/recommend","/improve","/duel","/investigate","/define","/exec","/login"];
   const _fetch=window.fetch.bind(window);
   window.fetch=async (url,opts)=>{
     const u=String(url);

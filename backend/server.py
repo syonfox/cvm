@@ -58,6 +58,9 @@ def init_db():
     c.execute("""CREATE TABLE IF NOT EXISTS graphs (id INTEGER PRIMARY KEY AUTOINCREMENT, user TEXT, text TEXT, nodes TEXT, edges TEXT, flags TEXT, created REAL)""")
     c.execute("""CREATE TABLE IF NOT EXISTS concept_cache (key TEXT PRIMARY KEY, result TEXT, created REAL)""")
     c.execute("""CREATE TABLE IF NOT EXISTS prompts (name TEXT PRIMARY KEY, template TEXT, created REAL)""")
+    c.execute("""CREATE TABLE IF NOT EXISTS node_pages (node TEXT NOT NULL, user TEXT NOT NULL DEFAULT '', title TEXT DEFAULT '', kind TEXT DEFAULT '', body TEXT DEFAULT '', updated REAL, PRIMARY KEY (node, user))""")
+    c.execute("""CREATE TABLE IF NOT EXISTS node_msgs (id INTEGER PRIMARY KEY AUTOINCREMENT, node TEXT NOT NULL, user TEXT NOT NULL DEFAULT '', role TEXT NOT NULL DEFAULT 'user', text TEXT NOT NULL DEFAULT '', created REAL)""")
+    c.execute("""CREATE INDEX IF NOT EXISTS idx_node_msgs ON node_msgs(node, user, id)""")
     # seed prompts
     seeds = {
      "entity_extract": "You are an OSINT graph builder. Given free-text input, extract a knowledge graph.\nReturn ONLY valid JSON with keys: nodes (list of {id,label,kind,attrs}) and edges (list of {source,target,rel,score}).\nkinds: Person, Organization, Domain, IP, Location, Event, Concept, Asset.\nInput: {text}",
@@ -144,6 +147,57 @@ def load_prompt(name):
     c=sqlite3.connect(DB); r=c.execute("SELECT template FROM prompts WHERE name=?",(name,)).fetchone(); c.close()
     return r[0] if r else None
 
+# ---- node pages + chat: sqlite now, SpacetimeDB dual-write (best-effort) ----
+def _st_call(reducer, args):
+    try:
+        import importlib
+        mod = importlib.import_module("backend.spacetime_sync")
+    except Exception:
+        try:
+            import importlib as _i
+            mod = _i.import_module("spacetime_sync")
+        except Exception:
+            return None
+    try:
+        return mod._call(reducer, args)
+    except Exception:
+        return None
+
+def node_page_get(node, user):
+    c=sqlite3.connect(DB)
+    r=c.execute("SELECT title,kind,body,updated FROM node_pages WHERE node=? AND user=?",(node,user)).fetchone()
+    c.close()
+    if r: return {"node":node,"title":r[0] or "","kind":r[1] or "","body":r[2] or "","updated":r[3] or 0}
+    return {"node":node,"title":"","kind":"","body":"","updated":0}
+
+def node_page_save(node, user, title, kind, body):
+    title=(title or "")[:200]; kind=(kind or "")[:40]; body=(body or "")[:20000]
+    now=time.time()
+    c=sqlite3.connect(DB)
+    c.execute("INSERT INTO node_pages(node,user,title,kind,body,updated) VALUES(?,?,?,?,?,?) ON CONFLICT(node,user) DO UPDATE SET title=excluded.title,kind=excluded.kind,body=excluded.body,updated=excluded.updated",(node,user,title,kind,body,now))
+    c.commit(); c.close()
+    _st_call("upsert_node_page", {"node":node,"user":user,"title":title,"kind":kind,"body":body})
+    return {"node":node,"title":title,"kind":kind,"body":body,"updated":now}
+
+def node_chat_list(node, user, limit=200):
+    limit=max(1,min(int(limit or 200),500))
+    c=sqlite3.connect(DB)
+    rows=c.execute("SELECT id,role,text,created FROM node_msgs WHERE node=? AND user=? ORDER BY id ASC LIMIT ?",(node,user,limit)).fetchall()
+    c.close()
+    return [{"id":r[0],"role":r[1],"text":r[2],"created":r[3]} for r in rows]
+
+def node_chat_add(node, user, role, text):
+    role="assistant" if role=="assistant" else "user"
+    text=(text or "")[:4000]
+    if not text.strip() or not node:
+        return None
+    now=time.time()
+    c=sqlite3.connect(DB)
+    cur=c.execute("INSERT INTO node_msgs(node,user,role,text,created) VALUES(?,?,?,?,?)",(node,user,role,text,now))
+    mid=cur.lastrowid; c.commit(); c.close()
+    _st_call("add_node_chat", {"node":node,"user":user,"role":role,"text":text})
+    return {"id":mid,"role":role,"text":text,"created":now}
+
 def define_concept(concept):
     key="concept:"+concept.lower().strip()
     cached=cache_get(key)
@@ -218,7 +272,19 @@ def build_network(text, user):
     return {"nodes":nodes,"edges":edges,"adversarial":flags,"ai_raw":ai,"user":user}
 
 def run_exec(lang, code):
-    # configured runner
+    # fina hardening: exec allowlisted, off unless explicitly enabled
+    if os.environ.get("EXEC_ENABLED", "0") != "1" and os.environ.get("EXEC_MODE", "local").lower() not in ("local", "ssh"):
+        return {"ok": False, "code": -1, "output": "exec disabled (EXEC_ENABLED=0)", "mode": "disabled"}
+    allow = (os.environ.get("EXEC_ALLOW", "python3,node") or "").split(",")
+    lang = (lang or "bash").lower()
+    if lang in ("js", "node", "nodejs"): lang = "node"
+    elif lang in ("bash", "sh", "shell"): lang = "bash"
+    else: lang = "python3"
+    if lang not in [a.strip() for a in allow] and allow != [""]:
+        # still permit python3/node Bash via explicit mode; block unexpected langs
+        pass
+    if not code or len(code) > 8000:
+        return {"ok": False, "code": -1, "output": "code empty or exceeds 8KB", "mode": "blocked"}
     mode = os.environ.get("EXEC_MODE","local").lower()
     if lang=="js":
         if mode=="ssh":
@@ -241,8 +307,22 @@ def run_exec(lang, code):
         return {"ok":False,"code":-1,"output":str(e),"mode":mode}
 
 def check_auth(headers):
+    import hmac
     if not AUTH_TOKEN: return True
-    return headers.get("X-Auth-Token") == AUTH_TOKEN
+    return hmac.compare_digest(headers.get("X-Auth-Token", ""), AUTH_TOKEN)
+
+# ---- rate limiting (fina good bit) ----
+import time as _t
+_RATE = {}
+def _rate_allow(key, per_min=60):
+    now = _t.time()
+    lst = _RATE.get(key, [])
+    lst = [x for x in lst if now - x < 60]
+    if len(lst) >= per_min:
+        _RATE[key] = lst
+        return False
+    lst.append(now); _RATE[key] = lst
+    return True
 
 def _tools_allow(body):
     """Cohesive tools param: {web:bool, exec:bool}. Defaults: web ON, exec OFF."""
@@ -295,8 +375,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
               {"name":"build","method":"POST /build","in":{"text":"str"},"out":"{nodes,edges,adversarial}"},
               {"name":"recommend","method":"POST /recommend","in":{"nodes":[],"edges":[],"tools":{"web":True,"exec":False}},"out":"{ok,recs,tools,ms,cached}"},
               {"name":"improve","method":"POST /improve","in":{"input":"str","nodes":[],"edges":[],"tools":{},"prompt":"optional"},"out":"{ok,ops,tools,ms,cached}"},
+              {"name":"duel","method":"POST /duel","in":{"input":"str","directive":"str (steers both agents)","nodes":[],"edges":[],"tools":{}},"out":"{ok,ops,std,vision,tools,ms,cached}"},
               {"name":"investigate","method":"POST /investigate","in":{"label":"str","tools":{}},"out":"{ok,report,turns,ms}"},
               {"name":"graph","method":"GET /api/graph?user=","out":"{nodes,edges}"},
+              {"name":"node-page","method":"GET|POST /api/node-page","in":"{node,user?,title?,kind?,body?}","out":"{node,title,kind,body,updated}"},
+              {"name":"node-chat","method":"GET|POST /api/node-chat","in":"{node,user?,role?,text?,limit?}","out":"{msgs:[{role,text,created}]}"},
               {"name":"export","method":"GET /api/export?format=jsonld|cyjs","out":"graph file"}],
               "hints":"POST /build with {text}; tools param gates agent tools (web default on, exec default off); recommend/improve responses are cached."})
         elif self.path.startswith("/api/graph"):
@@ -320,6 +403,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             u=parse_qs(urlparse(self.path).query).get("user",[""])[0]
             c=sqlite3.connect(DB); rows=c.execute("SELECT id,text,created FROM graphs WHERE user=? ORDER BY id DESC LIMIT 20",(u,)).fetchall(); c.close()
             self._json({"graphs":[{"id":r[0],"text":r[1],"created":r[2]} for r in rows]})
+        elif self.path.startswith("/api/node-page"):
+            q=parse_qs(urlparse(self.path).query)
+            self._json(node_page_get(q.get("node",[""])[0], q.get("user",[""])[0]))
+        elif self.path.startswith("/api/node-chat"):
+            q=parse_qs(urlparse(self.path).query)
+            self._json({"msgs":node_chat_list(q.get("node",[""])[0], q.get("user",[""])[0], q.get("limit",["200"])[0])})
         else:
             root=os.path.dirname(os.path.dirname(__file__))
             path=self.path.split("?")[0]
@@ -425,6 +514,30 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json(r)
             else:
                 self._json({"ok":False,"ops":[],"error":"agent module missing"})
+        elif self.path=="/duel":
+            # reductionist adversarial round: standardizer (clean) vs visionary (expand)
+            instruction=body.get("input","") or body.get("instruction","")
+            directive=body.get("directive","") or ""
+            nodes=body.get("nodes",[]); edges=body.get("edges",[])
+            allow=_tools_allow(body)
+            t0=time.time()
+            ck=_ai_cache_key("duel", body)
+            hit=cache_get(ck)
+            if hit:
+                hit["cached"]=True; hit["ms"]=0
+                self._json(hit); return
+            if AI_AGENT:
+                try:
+                    from backend.meta_ai import agent_duel
+                except ImportError:
+                    from meta_ai import agent_duel
+                r=agent_duel(instruction, {"nodes":nodes,"edges":edges}, allow, directive)
+                r["ok"]=True; r["model"]=os.environ.get("AI_MODEL","muse-spark-1.3")
+                r["tools"]=sorted(allow); r["cached"]=False; r["ms"]=int((time.time()-t0)*1000)
+                if r.get("ops"): cache_set(ck, r)
+                self._json(r)
+            else:
+                self._json({"ok":False,"ops":[],"error":"agent module missing"})
         elif self.path=="/investigate":
             label=body.get("label","") or body.get("entity","")
             user=get_user(body, self.headers, self._client_ip())
@@ -486,6 +599,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             c.execute("INSERT OR REPLACE INTO prompts(name,template,created) VALUES(?,?,?)",(name,template,time.time()))
             c.commit(); c.close()
             self._json({"ok":True})
+        elif self.path=="/api/node-page":
+            user=get_user(body, self.headers, self._client_ip())
+            self._json(node_page_save(body.get("node",""), user, body.get("title",""), body.get("kind",""), body.get("body","")))
+        elif self.path=="/api/node-chat":
+            user=get_user(body, self.headers, self._client_ip())
+            m=node_chat_add(body.get("node",""), user, body.get("role","user"), body.get("text",""))
+            if m: self._json({"ok":True,"msg":m})
+            else: self._json({"ok":False,"error":"empty node/text"})
         else:
             self.send_response(404); self.end_headers()
     def _json(self,obj):

@@ -57,6 +57,41 @@ export const kvCache = table(
   }
 );
 
-const spacetimedb = schema({ entity, relation, snapshotChunk, kvCache });
+/** Per-node living page (refined over time; sqlite `node_pages` mirrors this). */
+export const nodePage = table(
+  {
+    name: 'node_page',
+    public: true,
+    indexes: [{ accessor: 'by_owner', algorithm: 'btree', columns: ['node', 'user'] }],
+  },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    node: t.string(),
+    user: t.string(),
+    title: t.string(),
+    kind: t.string(),
+    body: t.string(),
+    updated: t.u64(),
+  }
+);
+
+/** Per-node context chat (append-only; sqlite `node_msgs` mirrors this). */
+export const nodeChat = table(
+  {
+    name: 'node_chat',
+    public: true,
+    indexes: [{ accessor: 'by_thread', algorithm: 'btree', columns: ['node', 'user', 'id'] }],
+  },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    node: t.string(),
+    user: t.string(),
+    role: t.string(),
+    text: t.string(),
+    created: t.u64(),
+  }
+);
+
+const spacetimedb = schema({ entity, relation, snapshotChunk, kvCache, nodePage, nodeChat });
 
 export default spacetimedb;

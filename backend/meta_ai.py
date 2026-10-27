@@ -86,11 +86,45 @@ def tool_web_search(query):
 
 
 def tool_fetch_url(url):
-    """Fetch a URL, return first 4k chars of text."""
+    """Fetch a URL, return first 4k chars of text. SSRF-guarded (fina good bit)."""
+    import socket
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "osint-graph/1.0"})
-        with urllib.request.urlopen(req, timeout=20) as r:
-            raw = r.read()[:6000].decode("utf-8", "ignore")
+        if not isinstance(url, str) or not url.lower().startswith(("http://", "https://")):
+            return {"error": "url must be http(s)"}
+        host = urllib.parse.urlparse(url).hostname or ""
+        try:
+            ip = socket.gethostbyname(host)
+            if ip.startswith(("127.", "10.", "192.168.", "169.254.")) or ip == "::1":
+                return {"error": "blocked: private/loopback host"}
+            a, b, c, d = [int(x) for x in ip.split(".")]
+            if ip.startswith("172.") and 16 <= a and 16 <= int(ip.split('.')[1]) <= 31:
+                return {"error": "blocked: private/loopback host"}
+        except Exception:
+            return {"error": "dns failed"}
+        cur = url
+        for _ in range(4):
+            req = urllib.request.Request(cur, headers={"User-Agent": "osint-graph/1.0"})
+            import http.client as _hc
+            class _NoRedir(urllib.request.HTTPRedirectHandler):
+                def redirect_request(self, req, fp, code, msg, hdrs, newurl):
+                    return None
+            opener = urllib.request.build_opener(_NoRedir)
+            try:
+                with opener.open(req, timeout=20) as r:
+                    ctype = r.headers.get("Content-Type", "")
+                    if "text" not in ctype and "json" not in ctype:
+                        return {"error": f"blocked content-type: {ctype[:80]}"}
+                    raw = r.read()[:6000].decode("utf-8", "ignore")
+            except urllib.error.HTTPError as e:
+                if e.code in (301, 302, 303, 307, 308):
+                    loc = e.headers.get("Location")
+                    if not loc: return {"error": "redirect without location"}
+                    cur = urllib.parse.urljoin(cur, loc)
+                    continue
+                return {"error": str(e)[:200]}
+            break
+        else:
+            return {"error": "too many redirects"}
         # strip tags crudely
         import re
         txt = re.sub(r"<script.*?</script>", " ", raw, flags=re.S | re.I)
@@ -310,7 +344,79 @@ def agent_recommend(nodes, user="", allow=None):
         return []
 
 
-SYS_IMPROVE = ("You are a graph editor with tools: graph_search, web_search, "
+# ---------- reductionist duel: standardizer vs visionary (clean config) ----------
+# Two adversarial roles, one shared op language. Standardizer groups/merges/
+# standardizes (fewer, cleaner nodes). Visionary expands/enriches (new nodes
+# + links, grounded by tools). A freeform `directive` steers both.
+DUEL_CFG = {
+    "standardizer": {"color": "#34d399", "icon": "◧", "label": "Standardizer"},
+    "visionary":    {"color": "#a78bfa", "icon": "◨", "label": "Visionary"},
+}
+
+STANDARDIZER_SYS = ("You are the STANDARDIZER: group and standardize. Merge "
+    "duplicates, unify labels (Title Case), normalize kinds, drop junk "
+    "nodes, collapse redundant edges. Reply with ONLY a JSON array of ops: "
+    "{\"op\":\"delete_node\",\"id\":..}, "
+    "{\"op\":\"delete_edge\",\"source\":..,\"target\":..}, "
+    "{\"op\":\"rename_node\",\"id\":..,\"label\":..}, "
+    "{\"op\":\"set_attr\",\"id\":..,\"key\":..,\"value\":..}, "
+    "{\"op\":\"add_edge\",\"source\":..,\"target\":..,\"rel\":..} "
+    "(add_edge only to reconnect orphans). Be aggressive about merging.")
+
+VISIONARY_SYS = ("You are the VISIONARY: expand and enrich. Propose NEW nodes "
+    "and missing links the graph should have, grounded by tools "
+    "(graph_search, web_search, fetch_url). Reply with ONLY a JSON array of "
+    "ops: {\"op\":\"add_node\",\"id\":..,\"label\":..,\"kind\":..}, "
+    "{\"op\":\"add_edge\",\"source\":..,\"target\":..,\"rel\":..}. "
+    "Every add_edge must reference a node that exists or that you add in the "
+    "same reply. Max 8 ops. No deletions, no renames.")
+
+
+def _parse_ops(text):
+    s = (text or "").strip()
+    if s.startswith("```"):
+        s = s.split("```")[1]
+        if s.startswith("json"):
+            s = s[4:]
+    try:
+        ops = json.loads(s)
+    except Exception:
+        return []
+    if isinstance(ops, dict):
+        ops = ops.get("ops", ops.get("std", ops.get("vision", [])))
+    return [o for o in ops if isinstance(o, dict) and o.get("op")] if isinstance(ops, list) else []
+
+
+def agent_duel(instruction, graph, allow=None, directive=""):
+    """One fun round: standardizer cleans, visionary expands on the result."""
+    extra = f"\nUser directive (steers BOTH agents): {directive}" if (directive or "").strip() else ""
+    std_msg = ("Instruction: " + (instruction or "standardize this graph") + extra +
+               "\nCurrent graph JSON: " + json.dumps(graph)[:8000])
+    try:
+        std = agent_run(std_msg, STANDARDIZER_SYS, allow)
+        std_ops = _parse_ops(std.get("text"))
+    except Exception as e:
+        return {"ops": [], "std": [], "vision": [], "error": str(e)[:200]}
+    # visionary sees the standardizer's plan so it enriches (not undoes) it
+    vis_msg = ("Standardizer plan (respect it, don't undo merges): " + json.dumps(std_ops)[:3000] +
+               extra + "\nCurrent graph JSON: " + json.dumps(graph)[:8000])
+    try:
+        vis = agent_run(vis_msg, VISIONARY_SYS, allow)
+        vis_ops = [o for o in _parse_ops(vis.get("text"))
+                   if o.get("op") in ("add_node", "add_edge")][:8]
+    except Exception:
+        vis_ops, vis = [], {"turns": 0}
+    for o in std_ops:
+        o["side"] = "std"
+    for o in vis_ops:
+        o["side"] = "vis"
+    return {"ops": std_ops + vis_ops, "std": std_ops, "vision": vis_ops,
+            "turns": (std.get("turns", 0) if isinstance(std, dict) else 0) +
+                     (vis.get("turns", 0) if isinstance(vis, dict) else 0)}
+
+
+def agent_improve(instruction, graph, tmpl_extra="", allow=None):
+    SYS_IMPROVE = ("You are a graph editor with tools: graph_search, web_search, "
                "fetch_url. Use them to verify facts, then reply with ONLY a JSON "
                "array of ops using these shapes: "
                "{\"op\":\"delete_node\",\"id\":..}, "
@@ -319,9 +425,6 @@ SYS_IMPROVE = ("You are a graph editor with tools: graph_search, web_search, "
                "{\"op\":\"add_edge\",\"source\":..,\"target\":..,\"rel\":..}, "
                "{\"op\":\"rename_node\",\"id\":..,\"label\":..}, "
                "{\"op\":\"set_attr\",\"id\":..,\"key\":..,\"value\":..}.")
-
-
-def agent_improve(instruction, graph, tmpl_extra="", allow=None):
     msg = ("Instruction: " + (instruction or "(no instruction - clean up the graph: "
            "merge duplicates, drop junk nodes, add obvious missing links)") +
            "\nCurrent graph JSON: " + json.dumps(graph)[:8000])
