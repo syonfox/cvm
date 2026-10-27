@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title>0shot — toolcall eval</title>
+<style>
+  body{margin:0;font-family:Inter,system-ui,sans-serif;background:#050810;color:#e2e8f0;min-height:100vh}
+  .w{max-width:760px;margin:0 auto;padding:24px}
+  h1{font-size:18px;margin:0 0 4px}.sub{font-size:12px;color:#64748b;margin-bottom:16px}
+  textarea{width:100%;min-height:90px;background:rgba(12,18,34,.8);border:1px solid rgba(255,255,255,.12);color:#e2e8f0;border-radius:10px;padding:12px;font-size:14px;font-family:inherit;box-sizing:border-box}
+  .row{display:flex;gap:8px;margin:10px 0;align-items:center;flex-wrap:wrap}
+  button{background:linear-gradient(135deg,#0284c7,#7c3aed);color:#fff;border:none;border-radius:10px;padding:10px 18px;font-weight:700;cursor:pointer}
+  button:disabled{opacity:.5}
+  button.ghost{background:rgba(255,255,255,.08)}
+  #bar{height:6px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;margin:10px 0}
+  #fill{height:100%;width:0;background:linear-gradient(90deg,#34d399,#38bdf8)}
+  #fill.over{background:#fb7185}
+  #stat{font-size:12px;color:#94a3b8}
+  #ans{background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:14px;margin-top:12px;font-size:14px;min-height:60px;line-height:1.55}
+  #ans.plain{white-space:pre-wrap}
+  #ans h1,#ans h2,#ans h3{margin:.6em 0 .3em;font-size:1.1em}
+  #ans p{margin:.4em 0}
+  #ans ul,#ans ol{margin:.4em 0;padding-left:22px}
+  #ans code{background:rgba(255,255,255,.1);border-radius:4px;padding:1px 5px;font-size:.88em}
+  #ans pre{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px;overflow:auto}
+  #ans pre code{background:none;padding:0}
+  #ans a{color:#38bdf8}
+  #ans table{border-collapse:collapse;margin:.5em 0;font-size:.9em}
+  #ans th,#ans td{border:1px solid rgba(255,255,255,.15);padding:4px 8px}
+  #kind{font-size:11px;color:#64748b;border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:2px 8px}
+  #trace{font-size:12px;color:#94a3b8;margin-top:10px}
+  .t{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:8px;margin-bottom:6px}
+  .t b{color:#38bdf8}
+</style>
+</head>
+<body>
+<nav style="display:flex;align-items:center;gap:14px;padding:10px 20px;background:rgba(5,8,16,.85);border-bottom:1px solid rgba(255,255,255,.08);position:sticky;top:0;z-index:100">
+  <a href="index.html" style="font-weight:800;font-size:16px;letter-spacing:-.02em;color:#fff;text-decoration:none;background:linear-gradient(135deg,#38bdf8,#a78bfa);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">cvm</a>
+  <a href="index.html" style="font-size:13px;color:#94a3b8;text-decoration:none">Graph</a>
+  <a href="0shot.html" style="font-size:13px;color:#94a3b8;text-decoration:none">0shot</a>
+</nav>
+<div class="w">
+  <h1>0shot <span style="font-size:11px;color:#64748b">secret toolcall eval</span></h1>
+  <div class="sub">One request in (?q= works) → model searches / executes as needed → answer in &lt;30s. Tools: web + exec + graph.</div>
+  <div class="sub" style="color:#7dd3fc">Tip: describe the connections that matter to you (e.g. "Alice works-for Acme, Acme located-in Berlin") — the AI will make those exact edits on the graph, nothing invented.</div>
+  <div class="sub" id="ctxline" style="color:#475569">context: …</div>
+  <textarea id="q" placeholder="Ask anything…"></textarea>
+  <div class="row">
+    <button id="go">Run 0shot</button>
+    <button id="cont" class="ghost" style="display:none">Continue ▶</button>
+    <div id="fmtSwitch" style="display:flex;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.12);border-radius:10px;overflow:hidden">
+      <button data-fmt="answer" class="ghost" style="border:none;border-radius:0;padding:10px 12px" title="natural-language answer">Answer</button>
+      <button data-fmt="json" class="ghost" style="border:none;border-radius:0;padding:10px 12px" title="answer + proposed graph edits as JSON">Graph edits</button>
+    </div>
+    <button id="appendBtn" class="ghost" style="display:none" title="append output as content onto the graph relation/node">⤺ Append to relation</button>
+    <button id="copy" class="ghost">Copy link (?q=)</button>
+    <span id="stat"></span>
+    <span id="kind" title="detected output format">plain</span>
+  </div>
+  <div id="bar"><div id="fill"></div></div>
+  <div id="ans">—</div>
+  <div class="row" id="traceRow" style="display:none">
+    <button id="traceTxt" class="ghost" title="download full traceability log as .txt">⬇ Trace .txt</button>
+    <button id="traceCopy" class="ghost" title="copy full trace to clipboard">⧉ Copy trace</button>
+  </div>
+  <div id="trace"></div>
+  <details id="traceDetail" style="margin-top:10px;display:none">
+    <summary style="cursor:pointer;font-size:12px;color:#7dd3fc">Full traceability detail (pre)</summary>
+    <pre id="tracePre" style="white-space:pre-wrap;word-break:break-word;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px;font-size:11px;color:#cbd5e1;max-height:320px;overflow:auto"></pre>
+  </details>
+</div>
+<script>
+const q=document.getElementById("q"), go=document.getElementById("go"),
+      ans=document.getElementById("ans"), stat=document.getElementById("stat"),
+      fill=document.getElementById("fill"), trace=document.getElementById("trace"),
+      kind=document.getElementById("kind");
+// ---- output detection + safe render: html vs markdown vs plain ----
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function sanitize(html){
+  const t=document.createElement("template"); t.innerHTML=html;
+  t.content.querySelectorAll("script,style,iframe,object,embed,form,input,button").forEach(n=>n.remove());
+  t.content.querySelectorAll("*").forEach(n=>{
+    [...n.attributes].forEach(a=>{
+      if(/^on/i.test(a.name)||a.name==="srcdoc")n.removeAttribute(a.name);
+      if((a.name==="href"||a.name==="src")&&/^\s*(javascript|data:text\/html)/i.test(a.value))n.removeAttribute(a.name);
+    });
+  });
+  return t.innerHTML;
+}
+function looksHtml(s){
+  const m=s.match(/<(p|div|h[1-6]|ul|ol|li|table|pre|br|a|b|strong|em|code)[\s>]/i);
+  return m && /<\/\w+>/.test(s);
+}
+function looksMd(s){
+  return /```|^#{1,6}\s|\*\*.+\*\*|\[.+\]\(https?:|^\s*[-*+]\s|^\s*\d+\.\s|^\s*\|.*\|\s*$|^\s*>/m.test(s);
+}
+function md(src){
+  // fenced code first
+  const stash=[];
+  src=src.replace(/```(\w*)\n([\s\S]*?)```/g,(_,l,c)=>{stash.push(`<pre><code>${esc(c.replace(/\n$/,""))}</code></pre>`);return `\u0000${stash.length-1}\u0000`;});
+  let h=esc(src);
+  h=h.replace(/^#{3}\s(.+)$/gm,"<h3>$1</h3>").replace(/^#{2}\s(.+)$/gm,"<h2>$1</h2>").replace(/^#{1}\s(.+)$/gm,"<h1>$1</h1>");
+  h=h.replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/(^|\W)\*(.+?)\*(?=\W|$)/g,"$1<em>$2</em>").replace(/`([^`]+)`/g,"<code>$1</code>");
+  h=h.replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
+  // lists
+  h=h.replace(/(?:^(?:\s*[-*+]\s.+\n?)+)/gm,m=>"<ul>"+m.trim().split("\n").map(l=>"<li>"+l.replace(/^\s*[-*+]\s/,"")+"</li>").join("")+"</ul>");
+  h=h.replace(/(?:^(?:\s*\d+\.\s.+\n?)+)/gm,m=>"<ol>"+m.trim().split("\n").map(l=>"<li>"+l.replace(/^\s*\d+\.\s/,"")+"</li>").join("")+"</ol>");
+  // tables (pipe rows)
+  h=h.replace(/(?:^\s*\|.*\|\s*$\n?)+/gm,m=>{
+    const rows=m.trim().split("\n").map(r=>r.trim().replace(/^\||\|$/g,"").split("|").map(c=>c.trim()));
+    const body=rows.filter(r=>!/^:?-{2,}:?$/.test(r[0].replace(/:/g,"").replace(/-/g,"-"))&&/^[\s:\-|]+$/.test(r.join("|")));
+    if(body.length<2)return m;
+    return "<table><tr>"+body[0].map(c=>`<th>${c}</th>`).join("")+"</tr>"+
+      body.slice(1).map(r=>"<tr>"+r.map(c=>`<td>${c}</td>`).join("")+"</tr>").join("")+"</table>";
+  });
+  h=h.split(/\n{2,}/).map(b=>/^\s*<(h\d|ul|ol|table|pre)/.test(b)?b:`<p>${b.replace(/\n/g,"<br>")}</p>`).join("");
+  h=h.replace(/\u0000(\d+)\u0000/g,(_,i)=>stash[+i]);
+  return h;
+}
+// output format: answer (rendered md/html/plain) or json (raw, tappable)
+let outFmt = new URLSearchParams(location.search).get("format")==="json" ? "json" : "answer";
+function paintFmt(){
+  document.querySelectorAll("#fmtSwitch [data-fmt]").forEach(b=>{
+    const on=b.dataset.fmt===outFmt;
+    b.style.background=on?"linear-gradient(135deg,#0284c7,#7c3aed)":"transparent";
+  });
+}
+document.querySelectorAll("#fmtSwitch [data-fmt]").forEach(b=>b.onclick=()=>{
+  outFmt=b.dataset.fmt; paintFmt();
+  if(savedRaw) renderAnswer(savedRaw); // re-render current output in new format
+});
+paintFmt();
+let lastJson = null; // raw /zero response when outFmt=json
+let lastOps = []; // proposed graph edits from JSON mode
+function renderAnswer(raw){
+  raw=raw||"(empty)";
+  lastOps = [];
+  if(outFmt==="json"){ // Graph-edits mode: {answer, ops} -> natural answer + faithful edit list
+    kind.textContent="answer + edits";
+    ans.className="";
+    try {
+      let t = raw.trim().replace(/^```(?:json)?\s*/i,"").replace(/```\s*$/,"");
+      const o = JSON.parse(t);
+      const a = o.answer || o.text || raw;
+      lastOps = Array.isArray(o.ops) ? o.ops.filter(x=>x&&x.op) : [];
+      let h = `<div style="line-height:1.55">${md(a)}</div>`;
+      if (lastOps.length) {
+        h += `<div style="margin-top:12px;border-top:1px solid rgba(255,255,255,.1);padding-top:10px">`
+          + `<div style="font-size:12px;color:#7dd3fc;margin-bottom:6px">Proposed graph edits (faithful to what you described — nothing invented):</div>`
+          + `<ul style="margin:0;padding-left:20px;font-size:13px">`
+          + lastOps.map(o=>`<li><code>${esc(o.op)}</code> ${esc(o.label||o.rel||"")} <span style="color:#64748b">${esc(o.id||((o.source||"")+(o.target?(" → "+o.target):"")))}${o.kind?(" ("+esc(o.kind)+")"):""}</span></li>`).join("")
+          + `</ul><button id="applyOps" style="margin-top:8px">Apply ${lastOps.length} edit(s) to graph</button></div>`;
+      } else {
+        h += `<div style="margin-top:10px;font-size:12px;color:#64748b">No graph edits proposed — describe a connection (e.g. "A works-for B") and re-run to enrich your graph.</div>`;
+      }
+      ans.innerHTML = h;
+      const b = document.getElementById("applyOps");
+      if (b) b.onclick = sendOps;
+    } catch(e){ ans.innerHTML="<pre><code>"+esc(raw)+"</code></pre>"; }
+    return;
+  }
+  let k="plain";
+  if(looksHtml(raw))k="html"; else if(looksMd(raw))k="markdown";
+  kind.textContent=k;
+  ans.className=k==="plain"?"plain":"";
+  if(k==="html")ans.innerHTML=sanitize(raw);
+  else if(k==="markdown")ans.innerHTML=md(raw);
+  else ans.textContent=raw;
+}
+// ---- base context: freemap lit id + local time (kept simple, expandable) ----
+const GRAPH_CTX = {
+  lit: null,              // filled async: .data.lit[5] from freemap (location/session id)
+  localTime: null,        // simple local-time string, refreshed per run
+  graph: null,            // EXPANDABLE HOOK: inject active graph base here later
+};
+// ---- graph handoff (Ctrl+0 from the graph): focus + FULL edge list, free ----
+let HANDOFF = null;
+try { HANDOFF = JSON.parse(localStorage.getItem("osint_0shot_handoff")||"null"); } catch(e){}
+const FROM_GRAPH = new URLSearchParams(location.search).get("from")==="graph";
+if (HANDOFF && FROM_GRAPH) GRAPH_CTX.graph = { focus:HANDOFF.focus, edges:HANDOFF.edges }; // all edges, no truncation
+function buildCtx(){
+  GRAPH_CTX.localTime = new Date().toLocaleString();
+  const parts = [`[context localTime=${GRAPH_CTX.localTime}]`];
+  if (GRAPH_CTX.lit) parts.push(`[context litId=${GRAPH_CTX.lit.id} geo=${GRAPH_CTX.lit.geo} ip=${GRAPH_CTX.lit.ip}]`);
+  if (GRAPH_CTX.graph) parts.push(`[context graphBase=${JSON.stringify(GRAPH_CTX.graph)}]`); // free: full edge context
+  return parts.join("\n");
+}
+function paintCtx(){
+  document.getElementById("ctxline").textContent =
+    "context: lit=" + (GRAPH_CTX.lit ? GRAPH_CTX.lit.id.slice(0,20) + "…" : "(loading…)")
+    + " · geo=" + (GRAPH_CTX.lit ? GRAPH_CTX.lit.geo : "?")
+    + " · local=" + (GRAPH_CTX.localTime || new Date().toLocaleString());
+}
+fetch("https://freemap.online/api/free/lit").then(r=>r.json()).then(j=>{
+  const lit = j && j.data && j.data.lit;
+  if (lit) GRAPH_CTX.lit = { id: String(lit[5]||""), ts: lit[0], geo: (lit[2]||[]).join(","), ip: lit[3] };
+  paintCtx();
+}).catch(()=>paintCtx());
+paintCtx();
+q.value=new URLSearchParams(location.search).get("q")||"";
+let timer=null, savedHistory=null, savedRaw="", savedCtx="", totalTurns=0, totalServerMs=0, savedModel="", savedDone="";
+async function run(resume){
+  const prompt=q.value.trim();
+  if(!prompt) return;
+  if(!resume){ savedHistory=null; savedRaw=""; totalTurns=0; totalServerMs=0; trace.innerHTML=""; }
+  history.replaceState({},"","0shot.html?q="+encodeURIComponent(prompt));
+  go.disabled=true; document.getElementById("cont").style.display="none";
+  ans.textContent=resume?ans.textContent+"\n\n…continuing…":"thinking…";
+  if(!resume)trace.innerHTML="";
+  stat.textContent="";
+  fill.style.width="0"; fill.className="";
+  const t0=performance.now();
+  timer=setInterval(()=>{
+    const s=(performance.now()-t0)/1000;
+    fill.style.width=Math.min(100,s/30*100)+"%";
+    stat.textContent=s.toFixed(1)+"s / 30s";
+    if(s>=30){fill.classList.add("over");stat.textContent+=" — OVER BUDGET";}
+  },100);
+  const ctl=new AbortController();
+  const to=setTimeout(()=>ctl.abort(),30000);
+  try{
+    const ctx=buildCtx(); savedCtx=ctx;
+    const r=await fetch("/zero",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({q:prompt, ctx, format:outFmt, history:resume?savedHistory:null}),signal:ctl.signal});
+    const j=await r.json();
+    const s=(performance.now()-t0)/1000;
+    clearInterval(timer);clearTimeout(to);
+    fill.style.width="100%";
+    totalTurns+=j.turns??0; totalServerMs+=j.ms??0;
+    savedHistory=j.history||null;
+    lastJson=j; savedModel=j.model||""; savedDone=j.done?"answered":(j.timed_out?"TIME BUDGET":"MORE TURNS");
+    stat.textContent=`done in ${s.toFixed(1)}s · ${(totalServerMs/1000).toFixed(1)}s server · ${totalTurns} turns · ${j.done?"answered":(j.timed_out?"TIME BUDGET":"MORE TURNS")} · ${j.model||""}`;
+    if(s>30)fill.classList.add("over");
+    renderAnswer(savedRaw=resume?(savedRaw+"\n\n"+(j.text||"")):(j.text||j.error||"(empty)"));
+    if(j.can_continue&&savedHistory){const c=document.getElementById("cont");c.style.display="";c.textContent=`Continue ▶ (${totalTurns} turns so far)`;}
+    if(HANDOFF&&FROM_GRAPH&&savedRaw){const a=document.getElementById("appendBtn");a.style.display="";}
+    paintTraceFull(j);
+    trace.innerHTML=(j.trace||[]).map(t=>`<div class="t"><b>turn ${t.turn}</b> `+
+      (t.error?`⚠ ${t.error}`:
+        (t.calls||[]).map(c=>`🔧 <b>${c.name}</b> <code>${JSON.stringify(c.arguments).slice(0,160)}</code>`).join("<br>")+
+        (t.answer?`<br>→ ${t.answer}`:"")+
+        (t.results?`<br><span style="color:#64748b">${t.results.map(r=>String(r).slice(0,200)).join(" | ")}</span>`:"")
+      )+`</div>`).join("");
+  }catch(e){
+    clearInterval(timer);clearTimeout(to);
+    const s=(performance.now()-t0)/1000;
+    stat.textContent=`failed after ${s.toFixed(1)}s`;
+    ans.textContent="CLIENT TIMEOUT/ERROR (>30s or aborted): "+e.message;
+    kind.textContent="plain"; ans.className="plain";
+  }
+  go.disabled=false;
+}
+go.onclick=()=>run(false);
+document.getElementById("cont").onclick=()=>run(true);
+// ---- full traceability: txt download + copy + <details><pre> summary ----
+function buildTraceTxt(){
+  const L=[];
+  L.push("0SHOT TRACEABILITY LOG");
+  L.push("=".repeat(60));
+  L.push(`time: ${new Date().toISOString()} (local: ${new Date().toLocaleString()})`);
+  L.push(`question: ${q.value.trim()}`);
+  L.push(`format: ${outFmt} | model: ${savedModel} | turns: ${totalTurns} | serverMs: ${Math.round(totalServerMs)} | status: ${savedDone}`);
+  L.push("");
+  L.push("--- CONTEXT SENT ---");
+  L.push(savedCtx||"(none)");
+  if(GRAPH_CTX.lit) L.push(`lit: id=${GRAPH_CTX.lit.id} geo=${GRAPH_CTX.lit.geo} ip=${GRAPH_CTX.lit.ip}`);
+  L.push("");
+  L.push("--- ANSWER (raw) ---");
+  L.push(savedRaw||"(empty)");
+  L.push("");
+  L.push("--- TURNS ---");
+  const tr=(lastJson&&lastJson.trace)||[];
+  if(!tr.length) L.push("(no turn trace returned)");
+  tr.forEach((t,i)=>{
+    L.push(`[turn ${t.turn??i}]`);
+    (t.calls||[]).forEach(c=>L.push(`  tool: ${c.name} args=${JSON.stringify(c.arguments)}`));
+    if(t.results) t.results.forEach((r,k)=>L.push(`  result[${k}]: ${String(r).slice(0,1000)}`));
+    if(t.answer) L.push(`  model: ${String(t.answer).slice(0,2000)}`);
+    if(t.error) L.push(`  ERROR: ${t.error}`);
+  });
+  if(lastOps&&lastOps.length){ L.push(""); L.push("--- PROPOSED GRAPH EDITS ---"); lastOps.forEach(o=>L.push(`  ${o.op} ${o.id||""} ${o.source||""}${o.target?(" -> "+o.target):""} ${o.rel||o.label||""}`)); }
+  L.push("");
+  L.push(`stat: ${stat.textContent}`);
+  return L.join("\n");
+}
+function paintTraceFull(j){
+  const txt=buildTraceTxt();
+  document.getElementById("traceRow").style.display="flex";
+  const d=document.getElementById("traceDetail"); d.style.display="block";
+  document.getElementById("tracePre").textContent=txt;
+}
+document.getElementById("traceTxt").onclick=()=>{
+  const txt=buildTraceTxt();
+  const stamp=new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([txt],{type:"text/plain"}));
+  a.download=`0shot-trace-${stamp}.txt`; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+};
+document.getElementById("traceCopy").onclick=async()=>{
+  try{ await navigator.clipboard.writeText(buildTraceTxt());
+    document.getElementById("traceCopy").textContent="Copied ✓";
+    setTimeout(()=>document.getElementById("traceCopy").textContent="⧉ Copy trace",1500);
+  }catch(e){}
+};
+// send faithful ops to the graph tab (storage event -> applied there)
+function sendOps(){
+  if(!lastOps.length) return;
+  localStorage.setItem("osint_0shot_ops", JSON.stringify({ops:lastOps, at:Date.now()}));
+  const b=document.getElementById("applyOps");
+  if(b){b.textContent=`Sent ${lastOps.length} edit(s) ✓ — open the Graph tab`;setTimeout(()=>b.textContent=`Apply ${lastOps.length} edit(s) to graph`,2000);}
+}
+// append output as content onto the graph relation/node (picked up via storage event)
+document.getElementById("appendBtn").onclick=()=>{
+  if(!HANDOFF||!savedRaw) return;
+  localStorage.setItem("osint_0shot_result", JSON.stringify({focus:HANDOFF.focus, text:savedRaw, at:Date.now()}));
+  document.getElementById("appendBtn").textContent="⤺ Appended ✓";
+  setTimeout(()=>document.getElementById("appendBtn").textContent="⤺ Append to relation",1500);
+};
+document.getElementById("copy").onclick=async()=>{
+  await navigator.clipboard.writeText(location.origin+"/0shot.html?q="+encodeURIComponent(q.value.trim()));
+  document.getElementById("copy").textContent="Copied!";
+  setTimeout(()=>document.getElementById("copy").textContent="Copy link (?q=)",1200);
+};
+q.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key==="Enter")run();});
+if(q.value)run();
+</script>
+</body>
+</html>

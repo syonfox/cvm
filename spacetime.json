@@ -1,0 +1,6 @@
+{
+  "dev": { "run": "python3 backend/server.py" },
+  "module-path": "./spacetimedb",
+  "database": "osintdb",
+  "server": "maincloud"
+}

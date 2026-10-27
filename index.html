@@ -1,0 +1,1369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>OSINT Graph Network</title>
+<style>
+  :root {
+    --bg: #050810; --panel: rgba(12,18,34,0.72); --border: rgba(255,255,255,0.08);
+    --cyan: #38bdf8; --violet: #a78bfa; --emerald: #34d399; --rose: #fb7185; --amber: #fbbf24;
+    --text: #e2e8f0; --dim: #64748b;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: Inter, system-ui, sans-serif; background: radial-gradient(1200px 600px at 50% -10%, #0f1b3a, var(--bg)); color: var(--text); min-height:100vh; }
+  .wrap { max-width: 1400px; margin: 0 auto; padding: 24px; }
+  header { display:flex; align-items:center; gap:14px; margin-bottom:24px; flex-wrap:wrap; }
+  .logo { width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#0284c7,#7c3aed);display:flex;align-items:center;justify-content:center;box-shadow:0 0 24px rgba(56,189,248,.4); }
+  h1 { font-size:22px; font-weight:800; letter-spacing:-.02em; margin:0; }
+  .sub { font-size:12px; color:var(--dim); margin-top:2px; }
+  .inputbar { display:flex; gap:12px; align-items:stretch; background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:8px; backdrop-filter:blur(20px); box-shadow:0 8px 40px rgba(0,0,0,.5); flex-wrap:wrap; }
+  .inputbar textarea { flex:1; background:transparent; border:none; outline:none; color:var(--text); font-size:15px; padding:12px 14px; resize:none; min-height:56px; font-family:inherit; min-width:200px; }
+  .inputbar button { background:linear-gradient(135deg,#0284c7,#7c3aed); color:#fff; border:none; border-radius:10px; padding:0 22px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:8px; transition:transform .15s, box-shadow .15s; }
+  .inputbar button:hover { transform:translateY(-1px); box-shadow:0 6px 24px rgba(56,189,248,.35); }
+  .inputbar button:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+  .inputbar button.secondary { background:rgba(255,255,255,.08); }
+  .tab { padding:8px 14px; border-radius:10px; background:rgba(255,255,255,.04); border:1px solid var(--border); cursor:pointer; font-size:13px; display:flex; align-items:center; gap:8px; }
+  .tab.active { background:linear-gradient(135deg,#0284c7,#7c3aed); border-color:transparent; }
+  .tab .close { opacity:.6; cursor:pointer; }
+  .tab .close:hover { opacity:1; }
+  .grid { display:grid; grid-template-columns: 1fr 360px; gap:20px; margin-top:20px; }
+  .app { display:grid; grid-template-columns: 250px 1fr; gap:20px; margin-top:20px; align-items:start; }
+  #layers { background:var(--panel); border:1px solid var(--border); border-radius:14px; backdrop-filter:blur(20px); padding:12px; position:sticky; top:12px; max-height:700px; display:flex; flex-direction:column; }
+  #layers h3 { margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); display:flex; justify-content:space-between; align-items:center; }
+  #layerToggle { display:none; width:100%; margin-top:16px; background:var(--panel); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:10px; font-size:14px; cursor:pointer; }
+  #layerList { display:flex; flex-direction:column; gap:6px; overflow:auto; }
+  .layer { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:10px; background:rgba(255,255,255,.04); border:1px solid var(--border); cursor:pointer; font-size:13px; }
+  .layer.active { background:linear-gradient(135deg,#0284c7,#7c3aed); border-color:transparent; }
+  .layer.hidden-eye { opacity:.55; }
+  .layer .nm { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .layer .ct { font-size:10px; color:var(--dim); }
+  .layer.active .ct { color:rgba(255,255,255,.8); }
+  .eye, .dely { background:none; border:none; cursor:pointer; font-size:15px; padding:0 2px; color:var(--text); }
+  .eye:hover, .dely:hover { transform:scale(1.2); }
+  #layerFoot { margin-top:10px; padding-top:10px; border-top:1px solid var(--border); font-size:11px; color:var(--dim); display:flex; flex-direction:column; gap:6px; }
+  #layerFoot .row { display:flex; gap:6px; }
+  #layerFoot button { flex:1; background:rgba(255,255,255,.06); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:5px; font-size:11px; cursor:pointer; }
+  @media (max-width: 1100px){ .app{grid-template-columns:1fr;} #layers{display:none;} #layers.open{display:flex;} #layerToggle{display:block;} .grid{grid-template-columns:1fr;} }
+  .panel { background:var(--panel); border:1px solid var(--border); border-radius:14px; backdrop-filter:blur(20px); overflow:hidden; position:relative; }
+  #graphHint{position:absolute;left:10px;top:10px;z-index:6;max-width:280px;background:rgba(5,8,16,.85);border:1px solid var(--border);border-radius:10px;padding:7px 10px;font-size:11.5px;color:var(--dim);line-height:1.5;backdrop-filter:blur(8px)}
+  #graphHint b{color:var(--text)} #graphHint .on{color:#7dd3fc;font-weight:700}
+  #ctxMenu{position:absolute;z-index:20;display:none;background:rgba(12,18,34,.97);border:1px solid var(--border);border-radius:12px;padding:8px;width:232px;box-shadow:0 12px 32px rgba(0,0,0,.6)}
+  #ctxMenu textarea{width:100%;box-sizing:border-box;background:rgba(0,0,0,.4);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:12px;font-family:inherit;resize:vertical}
+  #ctxMenu button.act{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:7px 8px;cursor:pointer;font-size:12.5px;border-radius:8px}
+  #ctxMenu button.act:hover{background:rgba(255,255,255,.07)}
+  #ctxMenu button.go{background:linear-gradient(135deg,#0284c7,#7c3aed);color:#fff;font-weight:800;font-size:13px;justify-content:center;margin-top:6px;padding:9px 8px}
+  #ctxMenu .hd{font-size:11px;color:var(--dim);padding:0 4px 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #ctxMenu .sec{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);padding:6px 4px 0}
+  #cyTools button{background:rgba(5,8,16,.85);border:1px solid var(--border);color:var(--text);border-radius:9px;width:32px;height:32px;font-size:16px;line-height:1;cursor:pointer;backdrop-filter:blur(8px)}
+  #cyTools button:disabled{opacity:.3;cursor:default}
+  #cyTools button:hover:not(:disabled){border-color:var(--cyan);color:var(--cyan)}
+  #undoBtn:not(:disabled),#redoBtn:not(:disabled){border-color:rgba(125,211,252,.5)!important;color:#7dd3fc!important;font-weight:800}
+  .panel.big{position:fixed;inset:56px 12px 52px 12px;z-index:200;background:#050810;box-shadow:0 20px 80px rgba(0,0,0,.7)}
+  .panel.big #cy{height:100%!important}
+  #cy { width:100%; height:640px; background: radial-gradient(circle at center, rgba(30,41,59,.35), rgba(5,8,16,.9)); }
+  .side { padding:16px; display:flex; flex-direction:column; gap:14px; max-height:680px; overflow:auto; }
+  .card { background:rgba(0,0,0,.35); border:1px solid var(--border); border-radius:10px; padding:12px; }
+  .card h3 { margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); }
+  .node { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:6px; background:rgba(255,255,255,.04); margin-bottom:4px; font-size:12px; }
+  .dot { width:10px;height:10px;border-radius:50%; }
+  .flag { background:rgba(251,113,133,.12); border:1px solid rgba(251,113,133,.3); color:#fda4af; padding:8px 10px; border-radius:8px; font-size:12px; margin-bottom:6px; }
+  .empty { color:var(--dim); font-size:13px; text-align:center; padding:40px 10px; }
+  .spinner { width:18px;height:18px;border:2px solid rgba(255,255,255,.2); border-top-color:var(--cyan); border-radius:50%; animation:spin 0.7s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg);} }
+  .meta { font-size:11px; color:var(--dim); margin-top:6px; }
+  .legend { display:flex; flex-wrap:wrap; gap:6px; }
+  .legend span { font-size:10px; padding:2px 6px; border-radius:4px; background:rgba(255,255,255,.06); }
+</style>
+</head>
+<body>
+<nav style="display:flex;align-items:center;gap:14px;padding:10px 20px;background:rgba(5,8,16,.85);border-bottom:1px solid rgba(255,255,255,.08);position:sticky;top:0;z-index:100;backdrop-filter:blur(10px)">
+  <a href="index.html" style="font-weight:800;font-size:16px;letter-spacing:-.02em;color:#fff;text-decoration:none;background:linear-gradient(135deg,#38bdf8,#a78bfa);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">cvm</a>
+  <a href="index.html" style="font-size:13px;color:#94a3b8;text-decoration:none">Graph</a>
+  <a href="0shot.html" style="font-size:13px;color:#94a3b8;text-decoration:none">0shot</a>
+</nav>
+<div class="wrap">
+  <header>
+    <div class="logo"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></div>
+    <div><h1>OSINT Graph Network</h1><div class="sub">One question. AI builds the relational graph. Tabs accumulate. Export/import JSON & URL.</div></div>
+  </header>
+  <div class="inputbar">
+    <select id="hostMode" style="background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:0 12px;font-size:12px;cursor:pointer;">
+      <option value="local">Local (localhost)</option>
+      <option value="lan">LAN</option>
+      <option value="wan">WAN (public)</option>
+    </select>
+    <input id="username" placeholder="username" style="background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:0 12px;font-size:12px;width:120px;" />
+    <input id="authtoken" type="password" placeholder="token (if required)" style="background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:0 12px;font-size:12px;width:140px;" />
+    <button id="loginBtn" class="secondary" title="login">Login</button>
+    <span id="loginState" style="font-size:12px;color:var(--dim);align-self:center"></span>
+    <textarea id="q" placeholder="Ask anything... AI will map relations. Each build adds a new tab."></textarea>
+    <button id="go"><span id="goText">Build Network</span><span id="goSpin" style="display:none" class="spinner"></span></button>
+    <button id="exportBtn" class="secondary">Export JSON</button>
+    <button id="importBtn" class="secondary">Import JSON</button>
+    <button id="combineBtn" class="secondary">Combined View</button>
+    <div id="viewSwitch" style="display:flex;background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <button data-view="force" class="secondary" style="border:none;border-radius:0;padding:0 12px" title="Force-directed">Force</button>
+      <button data-view="tree" class="secondary" style="border:none;border-radius:0;padding:0 12px" title="Hierarchical tree">Tree</button>
+      <button data-view="grid" class="secondary" style="border:none;border-radius:0;padding:0 12px" title="Grid">Grid</button>
+      <button id="graphCfgBtn" class="secondary" style="border:none;border-radius:0;padding:0 10px" title="Graph physics config">⚙</button>
+    </div>
+    <details id="graphCfg" style="font-size:12px;color:var(--dim);background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:10px;padding:6px 10px;max-width:280px"><summary style="cursor:pointer">physics: best default — click to tune</summary>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px;color:var(--text)">
+        <label>Repulsion <span id="vRep"></span><input id="cRep" type="range" min="4000" max="30000" step="500" style="width:100%"></label>
+        <label>Link length <span id="vLen"></span><input id="cLen" type="range" min="60" max="260" step="5" style="width:100%"></label>
+        <label>Anti-bunch radius <span id="vSep"></span><input id="cSep" type="range" min="60" max="260" step="5" style="width:100%"></label>
+        <label>Gravity <span id="vGrav"></span><input id="cGrav" type="range" min="0" max="2" step="0.05" style="width:100%"></label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input id="cEdgeAlong" type="checkbox" checked style="width:16px;height:16px;accent-color:#a3e635"> relation text along the line</label>
+        <div style="display:flex;gap:6px"><button id="cReset" class="secondary" style="flex:1">Best default</button><button id="cApply" class="secondary" style="flex:1">Apply + Settle</button></div>
+      </div>
+    </details>
+    <button id="recommendBtn" class="secondary">AI Recommend (5)</button>
+    <button id="agentBtn" class="secondary">Copy Agent JSON</button>
+    <button id="pngBtn" class="secondary" title="export PNG">PNG</button>
+    <button id="svgBtn" class="secondary" title="export SVG">SVG</button>
+    <button id="settleBtn" class="secondary" title="re-run force layout">⚛ Settle</button>
+    <button id="mergeBtn" class="secondary" title="merge JSON file into active tab">Merge JSON</button>
+    <button id="improveNodeBtn" class="secondary" title="improve selected node + neighborhood">Improve node</button>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;user-select:none"><input type="checkbox" id="toolWeb" checked style="width:18px;height:18px;accent-color:#a3e635" /> web</label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;user-select:none"><input type="checkbox" id="toolExec" style="width:18px;height:18px;accent-color:#a3e635" /> exec</label>
+    <input id="improveInput" placeholder="improve: e.g. merge duplicates…" style="background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:0 12px;font-size:12px;width:200px;" />
+    <button id="improveBtn" class="secondary">AI Improve</button>
+    <details id="improveCfg" style="font-size:12px;color:var(--dim);align-self:center"><summary style="cursor:pointer">prompt</summary>
+      <textarea id="improvePrompt" rows="6" style="width:320px;background:rgba(0,0,0,.4);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:11px;"></textarea><br/>
+      <button id="improveSave" class="secondary" style="padding:4px 8px">Save prompt</button>
+      <span id="improveSaveState"></span>
+    </details>
+    <input id="fileInput" type="file" accept="application/json" style="display:none" />
+  </div>
+  <button id="layerToggle">☰ Layers (<span id="layerCount">0</span>)</button>
+  <div class="app">
+  <aside id="layers">
+    <h3><span>Layers</span><span id="layerVis"></span></h3>
+    <div id="layerList"></div>
+    <div id="layerFoot">
+      <div class="row"><button id="showAll">Show all</button><button id="hideAll">Hide all</button><button id="clearAll">Clear</button></div>
+      <div id="layerStatus">—</div>
+    </div>
+  </aside>
+  <div class="grid">
+    <div class="panel"><div id="cy"></div><div id="graphHint">Click nodes to select · <b>right-click</b> a node for Ask / Path menu · <b>🛤</b> = path-pick mode</div><div id="ctxMenu"></div><div id="cyTools"><button id="undoBtn" title="undo (Ctrl+← or Ctrl+Z)">⟲</button><button id="redoBtn" title="redo (Ctrl+→ or Ctrl+Y)">⟳</button><button id="zIn" title="zoom in (+)">+</button><button id="zOut" title="zoom out (−)">−</button><button id="zFit" title="fit to view (F)">⤢</button><button id="zBig" title="big view / fullscreen (F11)">⛶</button><button id="pathMode" title="path-pick mode: click A then B">🛤</button></div></div>
+    <div class="side">
+      <div class="card"><h3>Nodes</h3><div id="nodes"></div></div>
+      <div class="card"><h3>Adversarial Flags</h3><div id="flags"></div></div>
+      <div class="card"><h3>Relate Entities</h3>
+        <select id="relSource" style="width:100%;margin-bottom:6px;background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px;"></select>
+        <select id="relTarget" style="width:100%;margin-bottom:6px;background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px;"></select>
+        <input id="relLabel" placeholder="relation (e.g. owns, located in)" style="width:100%;margin-bottom:6px;background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px;" />
+        <button id="relAdd" class="secondary" style="width:100%">Add Relation</button>
+      </div>
+      <div class="card"><h3>Rules (filter)</h3>
+        <textarea id="rules" placeholder="hide:IP,Location&#10;only:Person,Organization" style="width:100%;min-height:60px;background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px;font-size:12px;"></textarea>
+        <button id="applyRules" class="secondary" style="width:100%;margin-top:6px">Apply Rules</button>
+      </div>
+      <div class="card"><h3>AI Recommend (hot or not)</h3><div id="recs"></div></div>
+      <div class="card"><h3>Legend</h3><div class="legend" id="legend"></div></div>
+    </div>
+  </div>
+  </div>
+</div>
+<script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+<script type="module">
+  let BACKEND = "";
+  const hostMode = document.getElementById("hostMode");
+  let HOSTS = { local: "", lan: "", wan: "" };
+  (async () => {
+    try {
+      const r = await fetch("/info");
+      const d = await r.json();
+      const port = d.port || 3334;
+      const origin = window.location.origin;
+      HOSTS.local = origin;
+      HOSTS.lan = `http://${d.lan_ip}:${port}`;
+      HOSTS.wan = d.public_ip ? `http://${d.public_ip}:${port}` : HOSTS.lan;
+      const saved = localStorage.getItem("osint_hostmode") || "local";
+      hostMode.value = saved;
+      BACKEND = HOSTS[saved] || origin;
+    } catch(e) { hostMode.value="local"; BACKEND = window.location.origin; }
+  })();
+  hostMode.addEventListener("change", () => {
+    localStorage.setItem("osint_hostmode", hostMode.value);
+    BACKEND = HOSTS[hostMode.value] || window.location.origin;
+  });
+  const colors = { Person:"#38bdf8", Organization:"#a78bfa", Domain:"#34d399", IP:"#fb7185", Location:"#fbbf24", Event:"#f472b6", Concept:"#94a3b8", Asset:"#22d3ee" };
+
+  let cy;
+  // Fast renderer: batched adds, viewport culling, cheap layout for large graphs
+  // Unified view menu: Force/Tree/Grid + one physics debug config (best default baked in).
+  const BEST = { rep:22000, len:170, sep:190, grav:0.22 };
+  let phys = Object.assign({}, BEST, JSON.parse(localStorage.getItem("osint_phys")||"{}"));
+  let labelThreshold = 150; // hide labels above this node count for speed
+  const initCy = () => {
+    cy = cytoscape({
+      container: document.getElementById("cy"),
+      elements: [],
+      pixelRatio: 1,
+      textureOnViewport: true,
+      hideEdgesOnViewport: false,
+      motionBlur: false,
+      wheelSensitivity: 0.35, minZoom: 0.1, maxZoom: 6,
+      zoomingEnabled: true, userZoomingEnabled: true,
+      panningEnabled: true, userPanningEnabled: true,
+      boxSelectionEnabled: true, selectionType: "additive",
+      style: [
+        // ● NODES: filled circle + white label below (data() mappers — cytoscape resolves per-element; batchAdd coerces defaults so never null)
+        { selector:"node", style:{ "background-color":"data(color)", label:"data(label)", color:"#e2e8f0", "font-size":11, "font-weight":600, "text-valign":"bottom", "text-margin-y":8, width:"data(width)", height:"data(height)", "border-width":2, "border-color":"rgba(255,255,255,0.15)", "overlay-opacity":0 } },
+        // ↳ RELATIONS (edges): thin line + arrow + pill label — visually distinct from nodes
+        { selector:"edge", style:{ width:2, "line-color":"#475569", "target-arrow-color":"#94a3b8", "target-arrow-shape":"triangle", "curve-style":"bezier", label:"data(label)", "font-size":9, "font-style":"italic", color:"#e0e7ff", "text-background-color":"#1e1b3a", "text-background-opacity":.9, "text-background-padding":4, "text-background-shape":"roundrectangle", "text-border-width":1, "text-border-color":"rgba(167,139,250,.45)", "text-border-opacity":1 } },
+        // selection: glowing halo + neighbors light up, rest dims
+        { selector:"node:selected", style:{ "border-color":"#22d3ee", "border-width":5, "overlay-color":"#22d3ee", "overlay-opacity":0.25, "overlay-padding":10 } },
+        { selector:"edge:selected", style:{ "line-color":"#22d3ee", "target-arrow-color":"#22d3ee", width:4 } },
+        { selector:"node.neighbor", style:{ "border-color":"#a78bfa", "border-width":4 } },
+        { selector:"node.anchor", style:{ "border-color":"#7dd3fc", "border-width":5, "border-style":"double", "overlay-color":"#7dd3fc", "overlay-opacity":0.3, "overlay-padding":12 } },
+        { selector:"edge.neighbor", style:{ "line-color":"#a78bfa", "target-arrow-color":"#a78bfa", width:3 } },
+        { selector:"node.dimmed", style:{ opacity:0.25 } },
+        { selector:"edge.dimmed", style:{ opacity:0.15 } },
+        // accept = green blerp (pop), reject = red droop handled via animation
+        { selector:"node.flash-ok", style:{ "border-color":"#34d399", "border-width":6, "overlay-color":"#34d399", "overlay-opacity":0.45, "overlay-padding":14 } },
+        { selector:"node.flash-no", style:{ "border-color":"#fb7185", "border-width":6, "overlay-color":"#fb7185", "overlay-opacity":0.45, "overlay-padding":14 } },
+        // suggestion highlights: green=will add, amber=will change, red=will delete (pulsing halo)
+        { selector:"node.sug-add", style:{ "border-color":"#34d399", "border-width":5, "overlay-color":"#34d399", "overlay-opacity":0.4, "overlay-padding":12 } },
+        { selector:"edge.sug-add", style:{ "line-color":"#34d399", "target-arrow-color":"#34d399", width:4 } },
+        { selector:"node.sug-mod", style:{ "border-color":"#fbbf24", "border-width":5, "overlay-color":"#fbbf24", "overlay-opacity":0.4, "overlay-padding":12 } },
+        { selector:"edge.sug-mod", style:{ "line-color":"#fbbf24", "target-arrow-color":"#fbbf24", width:4 } },
+        { selector:"node.sug-del", style:{ "border-color":"#fb7185", "border-width":5, "border-style":"dashed", "overlay-color":"#fb7185", "overlay-opacity":0.45, "overlay-padding":12, opacity:0.55 } },
+        { selector:"edge.sug-del", style:{ "line-color":"#fb7185", "target-arrow-color":"#fb7185", width:4, "line-style":"dashed", opacity:0.6 } },
+      ],
+      layout: { name:"cose", padding:40, animate:true, animationDuration:600 }
+    });
+  };
+  initCy();
+  // force UX: nodes draggable; double-tap (taphold) pins/unpins; Settle re-runs ONCE and stops.
+  // Stability fix: removed per-frame custom physics loop (it fought cose and caused endless jumping).
+  // Force layout now runs once per render/view-change and then fully stops (no continuous sim).
+  cy.on("taphold","node",(e)=>{
+    const n=e.target;
+    if(n.locked()){ n.unlock(); n.style("border-style","solid"); aiTerm("sys","unpinned "+n.id()); }
+    else{ n.lock(); n.style({"border-style":"double","border-width":5}); aiTerm("sys","pinned "+n.id()+" (long-press to unpin)"); }
+  });
+  cy.on("grab","node",()=>{ document.getElementById("cy").style.cursor="grabbing"; });
+  cy.on("free","node",()=>{ document.getElementById("cy").style.cursor="default"; });
+  // relation labels along the curve: edge text-rotation autorotate follows the line angle
+  let edgeAlong = localStorage.getItem("osint_edge_along") !== "0";
+  const applyEdgeAlong = () => {
+    cy.style().selector("edge")
+      .style({
+        "text-rotation": edgeAlong ? "autorotate" : "none",
+        "text-margin-y": edgeAlong ? -8 : 0,
+        "text-margin-x": 0,
+        "text-justification": "center",
+        "text-halign": "center",
+        "text-valign": "center",
+      }).update();
+    const cb = document.getElementById("cEdgeAlong");
+    if (cb) cb.checked = edgeAlong;
+  };
+  const dragPrev = new Map();
+  cy.on("grab","node",(e)=>{ dragPrev.set(e.target.id(), {...e.target.position()}); });
+  cy.on("drag","node",(e)=>{
+    const n=e.target, id=n.id();
+    const prev=dragPrev.get(id)||{...n.position()}, cur=n.position();
+    const dx=cur.x-prev.x, dy=cur.y-prev.y;
+    dragPrev.set(id,{...cur});
+    if(!dx&&!dy) return;
+    const one=n.closedNeighborhood("node").not(n);
+    one.forEach(m=>{ if(m.locked()||m.grabbed()) return; const p=m.position(); m.position({x:p.x+dx*0.35, y:p.y+dy*0.35}); });
+    const two=n.closedNeighborhood("node").closedNeighborhood("node").not(n.closedNeighborhood("node"));
+    two.forEach(m=>{ if(m.locked()||m.grabbed()) return; const p=m.position(); m.position({x:p.x+dx*0.12, y:p.y+dy*0.12}); });
+  });
+  // multi-select highlight: selected nodes glow, their neighborhoods light up, rest dims
+  const paintSelection = () => {
+    cy.elements().removeClass("neighbor dimmed");
+    const sel = cy.$("node:selected");
+    if (!sel.length) return;
+    sel.addClass("neighbor");
+    sel.closedNeighborhood().addClass("neighbor");
+    cy.elements().not(sel.closedNeighborhood()).addClass("dimmed");
+  };
+  // clear neighbor-follow state + visual selection: halo on node, highlight neighborhood, dim rest
+  cy.on("tap","node",(e)=>{ paintSelection(); });
+  cy.on("tap",(e)=>{ if(e.target===cy){ cy.elements().removeClass("neighbor dimmed"); paintSelection(); try{paintHint();}catch(_){} } });
+  cy.on("select unselect","node",(e)=>{ paintSelection(); try{paintHint();}catch(_){} });
+  // Active view: force | tree | grid (persisted). Tree = breadthfirst hierarchy, Grid = grid.
+  let viewMode = localStorage.getItem("osint_view") || "force";
+
+  // ---- canonical graph type: Layer = {id, name, visible, data:{nodes:[{id,label,kind,attrs}], edges:[{source,target,rel}], adversarial:[]}, created}
+  const normNode = (n, i) => ({id:String(n.id??("n"+i)), label:String(n.label??n.id??("n"+i)), kind:n.kind||"Concept", attrs:(n.attrs&&typeof n.attrs==="object")?n.attrs:{}});
+  const normEdge = (e) => ({source:String(e.source??e.data?.source??""), target:String(e.target??e.data?.target??""), rel:String(e.rel??e.data?.label??"related"), attrs:(e.attrs&&typeof e.attrs==="object")?e.attrs:{}});
+  const normData = (d) => {
+    d = d||{};
+    const nodes=(d.nodes||[]).map(normNode);
+    const ids=new Set(nodes.map(n=>n.id));
+    const edges=(d.edges||[]).map(normEdge).filter(e=>e.source&&e.target&&ids.has(e.source)&&ids.has(e.target));
+    return {nodes, edges, adversarial:d.adversarial||d.flags||[]};
+  };
+  const tabs = []; // layers
+  let activeTab = -1;
+  let tabCounter = 0;
+  // ---- obvious, fast undo/redo: snapshot whole layer stack (cap 60), Ctrl+←/→ steps through it ----
+  const HIST_MAX = 60;
+  let histPast = [], histFuture = [];
+  const snapTabs = () => JSON.stringify({tabs, activeTab, tabCounter});
+  function pushHist() {
+    try {
+      histPast.push(snapTabs());
+      if (histPast.length > HIST_MAX) histPast.shift();
+      histFuture = [];
+      paintHist();
+    } catch(_){}
+  }
+  function restoreHist(snap) {
+    try {
+      const st = JSON.parse(snap);
+      tabs.length = 0;
+      for (const t of (st.tabs||[])) tabs.push(t);
+      activeTab = st.activeTab; tabCounter = st.tabCounter || tabs.length;
+      renderActive(); populateRelDropdowns(); renderTabs();
+      try{ save(); }catch(_){}
+    } catch(_){}
+  }
+  function doUndo() {
+    if (!histPast.length) return;
+    histFuture.push(snapTabs());
+    restoreHist(histPast.pop());
+    paintHist();
+    aiTerm("sys",`⟲ undo (${histPast.length} left, ${histFuture.length} redo)`);
+  }
+  function doRedo() {
+    if (!histFuture.length) return;
+    histPast.push(snapTabs());
+    restoreHist(histFuture.pop());
+    paintHist();
+    aiTerm("sys",`⟳ redo (${histFuture.length} left)`);
+  }
+  function paintHist() {
+    const u = document.getElementById("undoBtn"), r = document.getElementById("redoBtn");
+    if (u) { u.disabled = !histPast.length; u.title = `undo — ${histPast.length} step(s) (Ctrl+← or Ctrl+Z)`; }
+    if (r) { r.disabled = !histFuture.length; r.title = `redo — ${histFuture.length} step(s) (Ctrl+→ or Ctrl+Y)`; }
+  }
+
+  // ---- persistence: everything in localStorage, status is the comms channel ----
+  const LS_KEY="osint_state_v1";
+  const storeStatus=(msg)=>{ const el=document.getElementById("layerStatus"); if(el) el.textContent=msg; };
+  let saveT=null;
+  const save=()=>{
+    clearTimeout(saveT);
+    saveT=setTimeout(()=>{
+      try{
+        for(const t of tabs) t.data=normData(t.data);
+        localStorage.setItem(LS_KEY, JSON.stringify({tabs, activeTab, tabCounter,
+          settings:{phys, view:viewMode, toolWeb:document.getElementById("toolWeb").checked, toolExec:document.getElementById("toolExec").checked}}));
+        const nn=tabs.reduce((a,t)=>a+(t.data.nodes||[]).length,0);
+        storeStatus(`saved ✓ ${tabs.length} layer(s) · ${nn} nodes · ${new Date().toLocaleTimeString()}`);
+      }catch(e){ storeStatus("save failed: "+e.message); }
+    },300);
+  };
+  const loadState=()=>{
+    try{
+      const raw=localStorage.getItem(LS_KEY); if(!raw) return false;
+      const st=JSON.parse(raw);
+      for(const t of (st.tabs||[])) tabs.push({id:t.id, name:t.name, visible:t.visible!==false, data:normData(t.data), created:t.created||Date.now()});
+      activeTab=Math.min(st.activeTab??-1, tabs.length-1);
+      tabCounter=st.tabCounter||tabs.length;
+      if(st.settings){
+        if(st.settings.phys) phys=Object.assign({},BEST,st.settings.phys);
+        if(st.settings.view){ viewMode=st.settings.view; localStorage.setItem("osint_view",viewMode); }
+        if(st.settings.toolWeb===false){ localStorage.setItem("osint_tool_web","0"); document.getElementById("toolWeb").checked=false; }
+        if(st.settings.toolExec===true){ localStorage.setItem("osint_tool_exec","1"); document.getElementById("toolExec").checked=true; }
+      }
+      return tabs.length>0;
+    }catch(e){ return false; }
+  };
+
+  // ---- layers sidebar (left column; dropdown on mobile) ----
+  const renderTabs = () => {
+    const list = document.getElementById("layerList");
+    const vis = tabs.filter(t=>t.visible!==false).length;
+    document.getElementById("layerCount").textContent=tabs.length;
+    document.getElementById("layerVis").textContent=tabs.length?`${vis}/${tabs.length} visible`:"";
+    list.innerHTML = tabs.map((t,i)=>{
+      const n=(t.data.nodes||[]).length, e=(t.data.edges||[]).length;
+      return `<div class="layer ${i===activeTab?'active':''} ${t.visible===false?'hidden-eye':''}" data-i="${i}">
+        <button class="eye" data-eye="${i}" title="toggle visibility">${t.visible===false?'👁‍🗨':'👁️'}</button>
+        <span class="nm">${t.name}</span><span class="ct">${n}n ${e}e</span>
+        <button class="dely" data-del="${i}" title="delete layer">✕</button></div>`;
+    }).join("") || `<div style="color:var(--dim);font-size:13px;">No layers yet. Build one.</div>`;
+    list.querySelectorAll(".layer").forEach(el=>{
+      el.addEventListener("click", (ev)=>{
+        if(ev.target.dataset.eye!==undefined||ev.target.dataset.del!==undefined) return;
+        activeTab=Number(el.dataset.i); renderActive(); populateRelDropdowns(); renderTabs();
+      });
+    });
+    list.querySelectorAll("[data-eye]").forEach(b=>b.addEventListener("click",(ev)=>{
+      ev.stopPropagation();
+      const t=tabs[Number(b.dataset.eye)]; t.visible=(t.visible===false);
+      renderActive(); renderTabs();
+    }));
+    list.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",(ev)=>{
+      ev.stopPropagation();
+      tabs.splice(Number(b.dataset.del),1);
+      if(activeTab>=tabs.length) activeTab=tabs.length-1;
+      renderActive(); renderTabs();
+    }));
+    save();
+  };
+
+  const render = (data, tabName) => {
+    const id = ++tabCounter;
+    tabs.push({id, name: tabName || `Graph ${id}`, visible:true, data:normData(data), created:Date.now()});
+    activeTab = tabs.length-1;
+    renderActive();
+    renderTabs();
+  };
+
+  const degreeOf = (data) => { const d={}; for(const e of (data.edges||[])){ d[e.source]=(d[e.source]||0)+1; d[e.target]=(d[e.target]||0)+1; } return d; };
+  const sizeEls = (els, data) => { const deg=degreeOf(data); for(const el of els){ if(el.data.width) continue; el.data.width=el.data.height=34+Math.min(44,(deg[el.data.id]||0)*5); } return deg; };
+  const fastLayout = (n) => {
+    // view switcher: force / tree / grid. Each runs ONCE then stops (no jitter).
+    // layoutName (auto/cose/concentric/grid select) only affects force view; tree/grid views override.
+    if (viewMode === "tree") return { name:"breadthfirst", directed:true, spacingFactor:1.4, padding:30, animate:true, animationDuration:500, animationEasing:"ease-in-out-cubic", fit:true, circle:false, grid:true };
+    if (viewMode === "grid") return { name:"grid", padding:20, animate:true, animationDuration:500, animationEasing:"ease-in-out-cubic", fit:true, rows:Math.ceil(Math.sqrt(Math.max(1,n))), condense:false };
+    let name = "cose"; // unified: force view always uses tuned cose; tree/grid override
+    const nBig = n;
+    if (nBig>400 && viewMode==="force") name = "grid"; // huge graphs fall back to grid
+    const edgeCount = visibleData().edges.length;
+    const dens = n>1 ? edgeCount/n : 0;
+    const spread = Math.round(phys.len + Math.min(110, dens*22));
+    // stable cose: fewer iterations, no randomization after first run, stops cleanly
+    if (name==="cose") return { name:"cose", padding:60, animate:true, animationDuration:800, animationEasing:"ease-out",
+      nodeRepulsion:Math.round(phys.rep+dens*4000), idealEdgeLength:spread, gravity:phys.grav, edgeElasticity:90, nodeOverlap:12, componentSpacing:70, numIter:n>120?4:(n>60?8:14), refresh:10, fit:true, randomize:false, nodeDimensionsIncludeLabels:true };
+    if (name==="concentric") return { name:"concentric", padding:30, minNodeSpacing:Math.round(spread*0.6),
+      animate:true, animationDuration:600, startAngle:3/2*Math.PI, clockwise:true, equidistant:false, fit:true };
+    if (name==="fcose") return { name:"cose", animate:true, animationDuration:400, numIter:3, nodeRepulsion:12000, idealEdgeLength:spread, gravity:0.5, fit:true, randomize:false };
+    return { name:"grid", padding:20, animate:true, animationDuration:500, fit:true };
+  };
+  // Boids-style one-shot settle: separation (anti-bunch) + cohesion (edge springs +
+  // weak group centroid) + alignment (drift toward neighborhood center). Runs OFFLINE
+  // synchronously to target positions, then animates once with non-linear easeOutBack
+  // (overshoot, not linear). No perpetual sim -> no jumping. Respects locked (pinned) nodes.
+  const easeOutBack = (t) => { const c=1.70158, c3=c+1; return 1 + c3*Math.pow(t-1,3) + c*Math.pow(t-1,2); };
+  const easeInOut = (t) => t<.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2;
+  const boidsSettle = () => {
+    const nodes = cy.nodes();
+    const N = nodes.length;
+    if (!N) return;
+    const pos = new Map(), locked = new Set();
+    nodes.forEach(n=>{ pos.set(n.id(), {...n.position()}); if(n.locked()) locked.add(n.id()); });
+    // adjacency for cohesion/alignment
+    const adj = new Map();
+    nodes.forEach(n=>adj.set(n.id(), new Set()));
+    cy.edges().forEach(e=>{ adj.get(e.source().id())?.add(e.target().id()); adj.get(e.target().id())?.add(e.source().id()); });
+    const arr = nodes.toArray();
+    const REST = phys.len, SEP_R = phys.sep, ITERS = N>300?50:110;
+    const wSep=1.35, wCoh=0.038, wAli=0.016, wGrav=0.003, damp=0.86, maxStep=22;
+    const vel = new Map(arr.map(n=>[n.id(),{x:0,y:0}]));
+    const LIM = Math.min(N, N>200?200:N);
+    for (let it=0; it<ITERS; it++) {
+      const F = new Map();
+      const push=(id,fx,fy)=>{ const f=F.get(id)||{x:0,y:0}; f.x+=fx; f.y+=fy; F.set(id,f); };
+      // separation: 1/d^2 repulsion inside radius (anti-bunch)
+      for (let i=0;i<LIM;i++){ const a=arr[i], pa=pos.get(a.id());
+        for (let j=i+1;j<LIM;j++){ const b=arr[j], pb=pos.get(b.id());
+          let dx=pb.x-pa.x, dy=pb.y-pa.y, d2=dx*dx+dy*dy;
+          if (d2>SEP_R*SEP_R||d2<4) continue;
+          const d=Math.sqrt(d2), f=(1-d/SEP_R), s=wSep*f*f*60/(d+8);
+          const ux=dx/d, uy=dy/d;
+          push(a.id(),-ux*s,-uy*s); push(b.id(),ux*s,uy*s);
+        }
+      }
+      // cohesion: edge springs toward REST + alignment: pull toward neighbor centroid
+      cy.edges().forEach(e=>{
+        const aid=e.source().id(), bid=e.target().id();
+        const pa=pos.get(aid), pb=pos.get(bid);
+        if(!pa||!pb) return;
+        let dx=pb.x-pa.x, dy=pb.y-pa.y; const d=Math.hypot(dx,dy)||1, ux=dx/d, uy=dy/d;
+        const spring=(d-REST)*wCoh; // linear-ish spring, capped below
+        push(aid,ux*spring,uy*spring); push(bid,-ux*spring,-uy*spring);
+        // alignment: nudge each endpoint toward the other's neighborhood midpoint
+        push(aid,dx*wAli*0.25,dy*wAli*0.25); push(bid,-dx*wAli*0.25,-dy*wAli*0.25);
+      });
+      // weak gravity to local centroid keeps components from drifting off
+      let cx=0, cy0=0, cnt=0;
+      pos.forEach(p=>{cx+=p.x;cy0+=p.y;cnt++;}); cx/=cnt; cy0/=cnt;
+      pos.forEach((p,id)=>push(id,(cx-p.x)*wGrav,(cy0-p.y)*wGrav));
+      // integrate with damping + step cap
+      pos.forEach((p,id)=>{
+        if(locked.has(id)) return;
+        const v=vel.get(id), f=F.get(id)||{x:0,y:0};
+        v.x=(v.x+f.x)*damp; v.y=(v.y+f.y)*damp;
+        const s=Math.hypot(v.x,v.y);
+        if(s>maxStep){v.x*=maxStep/s;v.y*=maxStep/s;}
+        p.x+=v.x; p.y+=v.y;
+      });
+    }
+    // animate once to targets with overshoot easing (non-linear)
+    const from = new Map(); nodes.forEach(n=>from.set(n.id(),{...n.position()}));
+    const DUR = N>300?650:850; const t0=performance.now();
+    const frame=(t)=>{
+      const k=Math.min(1,(t-t0)/DUR), e=easeOutBack(k);
+      cy.startBatch();
+      nodes.forEach(n=>{
+        if(locked.has(n.id())) return;
+        const a=from.get(n.id()), b=pos.get(n.id());
+        n.position({x:a.x+(b.x-a.x)*e, y:a.y+(b.y-a.y)*e});
+      });
+      cy.endBatch();
+      if(k<1) requestAnimationFrame(frame); else cy.fit(40);
+    };
+    requestAnimationFrame(frame);
+  };
+  const paintViewSwitch = () => {
+    document.querySelectorAll("#viewSwitch [data-view]").forEach(b=>{
+      const on = b.dataset.view===viewMode;
+      b.style.background = on ? "linear-gradient(135deg,#0284c7,#7c3aed)" : "transparent";
+      b.style.color = "#fff";
+    });
+  };
+  document.querySelectorAll("#viewSwitch [data-view]").forEach(b=>b.onclick=()=>{
+    viewMode=b.dataset.view; localStorage.setItem("osint_view",viewMode); paintViewSwitch(); renderActive();
+  });
+  paintViewSwitch();
+  const batchAdd = (els) => {
+    // coerce defaults so style mappers never see null (prevents style-parse crash)
+    for (const el of els) {
+      if (el.data && !("label" in el.data)) el.data.label = "";
+      if (el.data && el.group !== "edges") {
+        if (!el.data.color) el.data.color = "#94a3b8";
+        if (!el.data.width) el.data.width = 40;
+        if (!el.data.height) el.data.height = el.data.width;
+      }
+    }
+    cy.startBatch();
+    try { cy.elements().remove(); } catch(_){}
+    // chunked add to avoid long task
+    const CH=2000;
+    for (let i=0;i<els.length;i+=CH) { try { cy.add(els.slice(i,i+CH)); } catch(err){ aiTerm("sys","add chunk skipped: "+String(err).slice(0,120)); } }
+    cy.endBatch();
+  };
+  const visibleData = () => {
+    // merged view: union of all VISIBLE layers (dedup by id / source->target)
+    const nm=new Map(), em=new Map(), adv=[];
+    for(const t of tabs){
+      if(t.visible===false) continue;
+      for(const n of (t.data.nodes||[])) if(!nm.has(n.id)) nm.set(n.id,{...n, layer:t.name});
+      for(const e of (t.data.edges||[])){ const k=e.source+">"+e.target+":"+e.rel; if(!em.has(k)) em.set(k,e); }
+      for(const f of (t.data.adversarial||[])) adv.push(f);
+    }
+    return {nodes:[...nm.values()], edges:[...em.values()], adversarial:adv};
+  };
+  const renderActive = () => {
+    const shown = tabs.filter(t=>t.visible!==false);
+    if (!shown.length) {
+      cy.elements().remove();
+      document.getElementById("nodes").innerHTML = `<div class="empty">No visible layers — toggle 👁️ in Layers</div>`;
+      document.getElementById("flags").innerHTML = `<div class="empty" style="padding:12px">No flags</div>`;
+      return;
+    }
+    const data = visibleData();
+    cy.elements().remove();
+    const els = [];
+    const ids = new Set((data.nodes||[]).map(n=>n.id));
+    for (const n of (data.nodes||[])) {
+      els.push({ data: { id:n.id, label:String(n.label??n.id), kind:n.kind, color: colors[n.kind]||"#94a3b8" } });
+    }
+    let dropped = 0;
+    sizeEls(els, data); // busier nodes render bigger -> more space
+    for (const e of (data.edges||[])) {
+      if (!ids.has(e.source) || !ids.has(e.target)) { dropped++; continue; } // skip dangling (prevents cytoscape crash)
+      const raw = String(e.rel || e.data?.label || "related").trim() || "related";
+      const pretty = /^\(.*\)$/.test(raw) ? raw : `(${raw})`;
+      els.push({ data: { id: "e"+els.length+"_"+e.source+"->"+e.target+":"+raw, source:e.source, target:e.target, label:pretty, rel:raw } });
+    }
+    if (dropped) aiTerm("sys", `dropped ${dropped} dangling edge(s) with missing endpoint`);
+    batchAdd(els);
+    cy.layout(fastLayout(els.length)).run();
+    const nl = document.getElementById("nodes");
+    nl.innerHTML = (data.nodes||[]).map(n=>`<div class="node"><span class="dot" style="background:${colors[n.kind]||'#94a3b8'}"></span><span><b>${n.label}</b> <span style="color:var(--dim)">(${n.kind}${n.layer?" · "+n.layer:""})</span></span></div>`).join("") || `<div class="empty">No nodes</div>`;
+    const fl = document.getElementById("flags");
+    fl.innerHTML = (data.adversarial||[]).length ? data.adversarial.map(f=>`<div class="flag">⚠ ${f.issue||f.node}</div>`).join("") : `<div class="empty" style="padding:12px">No adversarial flags. Clean.</div>`;
+    const lg = document.getElementById("legend");
+    lg.innerHTML = `<span style="border:1px solid var(--cyan);border-radius:50%;width:14px;height:14px;display:inline-block" title="node"></span><span>● Node = entity</span>
+      <span style="color:var(--violet)">↳—▶</span><span>Relation = link</span><br/>` + Object.entries(colors).map(([k,v])=>`<span style="border-left:3px solid ${v};padding-left:6px">● ${k}</span>`).join("");
+  };
+
+  const populateRelDropdowns = () => {
+    if (activeTab < 0) return;
+    const data = tabs[activeTab].data;
+    const opts = data.nodes.map(n=>`<option value="${n.id}">${n.label} (${n.kind})</option>`).join("");
+    document.getElementById("relSource").innerHTML = opts;
+    document.getElementById("relTarget").innerHTML = opts;
+  };
+  const origRenderActive = renderActive;
+  // wrap renderActive to also populate dropdowns
+  const renderActiveWrapped = () => { origRenderActive(); populateRelDropdowns(); };
+  // replace references: redefine renderActive
+  // We'll just call populate in renderActive by patching: redefine renderActive variable not possible (const). Instead hook via override of global renderActive usage? We'll add calls manually.
+  // Add relation handler
+  document.getElementById("relAdd").onclick = () => {
+    if (activeTab < 0) return;
+    const s = document.getElementById("relSource").value;
+    const t = document.getElementById("relTarget").value;
+    const label = document.getElementById("relLabel").value.trim() || "relates to";
+    if (!s || !t || s===t) return;
+    pushHist();
+    tabs[activeTab].data.edges.push({source:s, target:t, rel:label, data:{label}});
+    renderActive();
+    populateRelDropdowns();
+  };
+  // layers footer + mobile toggle
+  document.getElementById("layerToggle").onclick = () => document.getElementById("layers").classList.toggle("open");
+  document.getElementById("showAll").onclick = () => { tabs.forEach(t=>t.visible=true); renderActive(); renderTabs(); };
+  document.getElementById("hideAll").onclick = () => { tabs.forEach(t=>t.visible=false); renderActive(); renderTabs(); };
+  document.getElementById("clearAll").onclick = () => {
+    if(!confirm("Delete all layers and clear saved state?")) return;
+    pushHist();
+    tabs.length=0; activeTab=-1; localStorage.removeItem(LS_KEY);
+    renderActive(); renderTabs(); storeStatus("cleared ✓");
+  };
+  // combined view = show every layer
+  document.getElementById("combineBtn").onclick = () => {
+    if (tabs.length === 0) return;
+    tabs.forEach(t=>t.visible=true); // merged view IS the union of visible layers
+    renderActive(); renderTabs();
+    aiTerm("sys","combined view: all "+tabs.length+" layer(s) visible");
+  };
+  // rules
+  document.getElementById("applyRules").onclick = () => {
+    if (activeTab < 0) return;
+    const rules = document.getElementById("rules").value.split("\\n").map(x=>x.trim()).filter(Boolean);
+    let hidden = new Set();
+    let only = null;
+    for (const r of rules) {
+      const [cmd, val] = r.split(":");
+      const kinds = (val||"").split(",").map(x=>x.trim()).filter(Boolean);
+      if (cmd==="hide") kinds.forEach(k=>hidden.add(k));
+      if (cmd==="only") only = new Set(kinds);
+    }
+    const data = tabs[activeTab].data;
+    const filteredNodes = data.nodes.filter(n => {
+      if (hidden.has(n.kind)) return false;
+      if (only && !only.has(n.kind)) return false;
+      return true;
+    });
+    const allowed = new Set(filteredNodes.map(n=>n.id));
+    const filteredEdges = data.edges.filter(e => allowed.has(e.source||e.data?.source) && allowed.has(e.target||e.data?.target));
+    // render filtered view without mutating original: create temp tab? Instead mutate cy directly
+    cy.elements().remove();
+    const els=[];
+    for (const n of filteredNodes) els.push({data:{id:n.id,label:n.label,kind:n.kind,color:colors[n.kind]||"#94a3b8"}});
+    for (const e of filteredEdges) { const rel = e.rel || e.data?.label || "related"; els.push({data:{id:"e"+els.length+"_"+e.source+"->"+e.target+":"+rel,source:e.source,target:e.target,label:rel,rel}}); }
+    sizeEls(els, {nodes:filteredNodes, edges:filteredEdges});
+    cy.add(els);
+    cy.layout(fastLayout(els.length)).run();
+  };
+  // populate dropdowns on initial and after render; hook by overriding renderActive globally not possible, so patch call sites: we'll monkeypatch by reassigning window renderActive? Instead add populate to renderTabs? call after renderActive in goBtn etc. Simplest: call populateRelDropdowns inside a MutationObserver? 
+  // We'll instead modify renderActive function definition is already done; add populate call by editing renderActive above? Can't. Instead call populate after each render via wrapping the render function.
+  const _render = render;
+  // no-op placeholder
+  const origRender = render;
+  // We'll monkeypatch render to populate dropdowns
+  // redefine render
+  // (render is const; cannot reassign). Instead hook in goBtn already calls render; add populate there.
+
+  // QOL: tool toggles (web ON default, exec OFF default), persisted
+  const toolWeb=document.getElementById("toolWeb"), toolExec=document.getElementById("toolExec");
+  toolWeb.checked=localStorage.getItem("osint_tool_web")!=="0";
+  toolExec.checked=localStorage.getItem("osint_tool_exec")==="1";
+  toolWeb.onchange=()=>localStorage.setItem("osint_tool_web",toolWeb.checked?"1":"0");
+  toolExec.onchange=()=>localStorage.setItem("osint_tool_exec",toolExec.checked?"1":"0");
+  const aiTools=()=>({web:toolWeb.checked,exec:toolExec.checked});
+  const aiHeaders=()=>({"Content-Type":"application/json","X-Auth-Token":localStorage.getItem("osint_token")||""});
+  document.getElementById("recommendBtn").onclick = async () => {
+    if (activeTab < 0) return;
+    const data = tabs[activeTab].data;
+    const box = document.getElementById("recs");
+    box.innerHTML = "Loading...";
+    try {
+      const r = await fetch(BACKEND+"/recommend", {method:"POST", headers:{"Content-Type":"application/json","X-Auth-Token":localStorage.getItem("osint_token")||""}, body: JSON.stringify({nodes:data.nodes, edges:data.edges, tools:aiTools()})});
+      const txt = await r.text();
+      let j;
+      try { j = JSON.parse(txt); } catch(e) { throw new Error("Bad response: "+txt.slice(0,200)); }
+      const recs = j.recs || [];
+      const nodeSugs = j.nodes || j.nodeSugs || j.suggest_nodes || [];
+      const escH = (s)=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;");
+      box.innerHTML =
+        (nodeSugs.length ? `<div style="font-size:11px;color:var(--dim);margin-bottom:4px">● Suggested <b>NODES</b> (new entities)</div>` + nodeSugs.map((sug,i)=>{
+          const label = sug.label||sug.id||sug.name||"node";
+          return `<div data-card style="margin-bottom:8px;padding:8px;background:rgba(52,211,153,.08);border:1px dashed rgba(52,211,153,.4);border-radius:8px;font-size:12px;">
+          <div>● <b>${escH(label)}</b> <span style="color:var(--dim)">(${escH(sug.kind||"Concept")})</span></div>
+          <div style="color:var(--dim);font-size:11px">${escH(sug.reason||"")}</div>
+          <div style="margin-top:4px;display:flex;gap:6px">
+            <button data-nacc="${i}" class="secondary" style="padding:4px 8px">+ Add node</button>
+            <button data-nskip="${i}" class="secondary" style="padding:4px 8px">Skip</button>
+          </div></div>`; }).join("") : "") +
+        (recs.length ? `<div style="font-size:11px;color:var(--dim);margin:6px 0 4px">↳ Suggested <b>RELATIONS</b> (links between nodes)</div>` : "") +
+        (recs.map((rec,i)=>`<div data-card style="margin-bottom:8px;padding:8px;background:rgba(0,0,0,.3);border-radius:8px;font-size:12px;border-left:3px solid var(--violet)">
+        <div>● <b>${escH(rec.source)}</b> <span style="color:var(--dim)">—↳ <i>${escH(rec.rel)}</i> →</span> ● <b>${escH(rec.target)}</b></div>
+        <div style="color:var(--dim);font-size:11px">${escH(rec.reason||"")}</div>
+        <div style="margin-top:4px;display:flex;gap:6px">
+          <button data-acc="${i}" class="secondary" style="padding:4px 8px">Accept</button>
+          <button data-skip="${i}" class="secondary" style="padding:4px 8px">Skip</button>
+        </div>
+      </div>`).join("") || (nodeSugs.length ? "" : "No recs"));
+      // green blerp (accept pop) vs red droop (reject shrink) animations
+      const blerp = (id) => {
+        const el = cy.getElementById(id);
+        if (!el.length) return;
+        el.addClass("flash-ok");
+        const w = el.data("width")||40;
+        el.animation({ style:{ width:w*1.6, height:w*1.6, "overlay-opacity":0.5 }, duration:180, easing:"ease-out" })
+          .play().promise("completed").then(()=>el.animation({ style:{ width:w, height:w, "overlay-opacity":0 }, duration:320, easing:"ease-out" }).play());
+        setTimeout(()=>el.removeClass("flash-ok"), 900);
+      };
+      const droop = (cardEl) => {
+        if(!cardEl) return;
+        cardEl.style.transition="all .35s ease-in";
+        cardEl.style.transform="translateY(8px) scale(.92)"; cardEl.style.opacity="0.25";
+        cardEl.style.borderColor="var(--rose)";
+        setTimeout(()=>{ cardEl.style.opacity=".4"; },380);
+      };
+      box.querySelectorAll("[data-nacc]").forEach(btn=>{
+        btn.onclick = () => {
+          const sug = nodeSugs[Number(btn.dataset.nacc)];
+          const d = tabs[activeTab].data;
+          const id = String(sug.id||sug.label||("n"+Date.now()));
+          if (!d.nodes.some(n=>n.id===id)) {
+            const nn = { id, label:String(sug.label||sug.id||id), kind:sug.kind||"Concept", attrs:sug.attrs||{} };
+            d.nodes.push(nn);
+            renderActive(); populateRelDropdowns();
+            blerp(id);
+          }
+          btn.closest("[data-card]").style.opacity=".4";
+        };
+      });
+      box.querySelectorAll("[data-nskip]").forEach(btn=>{ btn.onclick = () => droop(btn.closest("[data-card]")); });
+      box.querySelectorAll("[data-acc]").forEach(btn=>{
+        btn.onclick = () => {
+          const i = Number(btn.dataset.acc);
+          const rec = recs[i];
+          const d = tabs[activeTab].data;
+          const resolveId = (ref) => {
+            let n = d.nodes.find(n=>n.id===ref) || d.nodes.find(n=>n.label===ref);
+            if (!n) { // agent named an entity not in the graph: add it
+              n = {id:ref, label:ref, kind:"Concept", attrs:{}, data:{id:ref,label:ref,kind:"Concept"}};
+              d.nodes.push(n);
+            }
+            return n.id;
+          };
+          const s = resolveId(rec.source), t = resolveId(rec.target);
+          if (!d.edges.some(e=>e.source===s&&e.target===t))
+            d.edges.push({source:s,target:t,rel:rec.rel,data:{label:rec.rel}});
+          renderActive(); populateRelDropdowns();
+          blerp(s); blerp(t);
+          btn.closest("[data-card]").style.opacity=".4";
+        };
+      });
+      box.querySelectorAll("[data-acc]").forEach(b=>{});
+      box.querySelectorAll("[data-skip]").forEach(btn=>{
+        btn.onclick = () => droop(btn.closest("[data-card]"));
+      });
+    } catch(e) { box.innerHTML = "Error: "+e.message; }
+  };
+
+  // AI Improve: configurable prompt + input + current graph -> ops array, applied to tab
+  fetch(BACKEND+"/prompts").then(r=>r.json()).then(j=>{
+    const t=(j.prompts||[]).find(p=>p.name==="improve");
+    if(t) document.getElementById("improvePrompt").value=t.template;
+  }).catch(()=>{});
+  document.getElementById("improveSave").onclick = async () => {
+    const template=document.getElementById("improvePrompt").value;
+    await fetch(BACKEND+"/prompt",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:"improve",template})});
+    document.getElementById("improveSaveState").textContent="saved ✓";
+    setTimeout(()=>document.getElementById("improveSaveState").textContent="",1200);
+  };
+  const applyOps = (data, ops) => {
+    const log=[];
+    for(const o of ops){
+      try{
+        if(o.op==="delete_node"){ data.nodes=data.nodes.filter(n=>n.id!==o.id); data.edges=data.edges.filter(e=>e.source!==o.id&&e.target!==o.id); log.push("del node "+o.id); }
+        else if(o.op==="delete_edge"){ data.edges=data.edges.filter(e=>!(e.source===o.source&&e.target===o.target)); log.push(`del edge ${o.source}→${o.target}`); }
+        else if(o.op==="add_node"){ const n={id:o.id||("n"+Date.now()),label:o.label||o.id,kind:o.kind||"Concept",attrs:o.attrs||{}}; n.data={id:n.id,label:n.label,kind:n.kind}; data.nodes.push(n); log.push("add node "+n.label); }
+        else if(o.op==="add_edge"){ data.edges.push({source:o.source,target:o.target,rel:o.rel||"related",data:{label:o.rel||"related"}}); log.push(`add edge ${o.source}→${o.target} (${o.rel})`); }
+        else if(o.op==="rename_node"){ const n=data.nodes.find(n=>n.id===o.id); if(n){n.label=o.label; n.data.label=o.label; log.push("rename "+o.id+"→"+o.label);} }
+        else if(o.op==="set_attr"){ const n=data.nodes.find(n=>n.id===o.id); if(n){n.attrs=n.attrs||{}; n.attrs[o.key]=o.value; log.push(`set ${o.id}.${o.key}`);} }
+        else log.push("skip unknown op "+JSON.stringify(o).slice(0,80));
+      }catch(e){ log.push("ERR "+e.message); }
+    }
+    return log;
+  };
+  document.getElementById("improveBtn").onclick = async () => {
+    if (activeTab < 0) return;
+    const btn=document.getElementById("improveBtn");
+    const data = tabs[activeTab].data;
+    const box = document.getElementById("recs");
+    const before = JSON.stringify(data);
+    btn.textContent="Improving…";
+    try{
+      const r = await fetch(BACKEND+"/improve",{method:"POST",headers:aiHeaders(),
+        body:JSON.stringify({input:document.getElementById("improveInput").value, nodes:data.nodes, edges:data.edges, tools:aiTools(), prompt:document.getElementById("improvePrompt").value||undefined})});
+      const j = await r.json();
+      const ops = j.ops||[];
+      if(!ops.length){ box.innerHTML="No improvements suggested."+(j.error?" ("+j.error+")":""); return; }
+      // classify ops so preview can color them: green=add, amber=modify, red=delete
+      const cls = { addN:new Set(), addE:[], modN:new Set(), modE:[], delN:new Set(), delE:[] };
+      for (const o of ops) {
+        if (o.op==="add_node" && o.id) cls.addN.add(String(o.id));
+        else if (o.op==="add_edge") cls.addE.push({s:String(o.source), t:String(o.target), rel:String(o.rel||"related")});
+        else if (o.op==="rename_node"||o.op==="set_attr") cls.modN.add(String(o.id));
+        else if (o.op==="delete_node" && o.id) cls.delN.add(String(o.id));
+        else if (o.op==="delete_edge") cls.delE.push({s:String(o.source), t:String(o.target)});
+      }
+      // preview: apply adds+mods live (highlighted), keep deletes as red ghosts (removed only on accept)
+      const previewHi = () => {
+        const clone = JSON.parse(before);
+        const nonDel = ops.filter(o=>o.op!=="delete_node"&&o.op!=="delete_edge");
+        const log = applyOps(clone, nonDel);
+        const delLog = ops.filter(o=>o.op==="delete_node"||o.op==="delete_edge").map(o=>o.op==="delete_node"?`will delete node ${o.id}`:`will delete edge ${o.source}→${o.target}`);
+        tabs[activeTab].data = clone; renderActive(); populateRelDropdowns();
+        const byId = (id) => cy.getElementById(id);
+        cls.addN.forEach(id=>{ const el=byId(id); if(el.length) el.addClass("sug-add"); });
+        cls.modN.forEach(id=>{ const el=byId(id); if(el.length) el.addClass("sug-mod"); });
+        cls.delN.forEach(id=>{ const el=byId(id); if(el.length) el.addClass("sug-del"); });
+        const markEdge = (s,t,c) => cy.edges().filter(e=>e.source().id()===s&&e.target().id()===t).addClass(c);
+        cls.addE.forEach(e=>markEdge(e.s,e.t,"sug-add"));
+        cls.delE.forEach(e=>markEdge(e.s,e.t,"sug-del"));
+        return log.concat(delLog);
+      };
+      const log = previewHi();
+      box.innerHTML = `<div style="font-size:12px;margin-bottom:6px">AI suggests ${log.length} change(s) — <span style="color:#34d399">● add</span> <span style="color:#fbbf24">● modify</span> <span style="color:#fb7185">● delete</span> (highlighted on graph)<br/>
+        <button id="applyImprove" class="secondary" style="padding:4px 12px;border-color:#34d399;color:#34d399;font-weight:700">✓ Accept changes</button>
+        <button id="discardImprove" class="secondary" style="padding:4px 12px">✕ Reject</button></div>` +
+        log.map(l=>`<div style="font-size:11px;color:var(--dim)">• ${l}</div>`).join("");
+      document.getElementById("discardImprove").onclick=()=>{ tabs[activeTab].data=JSON.parse(before); renderActive(); populateRelDropdowns(); box.innerHTML="Rejected — graph untouched."; aiTerm("sys","suggestion rejected (graph untouched)"); };
+      document.getElementById("applyImprove").onclick=()=>{
+        pushHist();
+        const full = JSON.parse(before);
+        const alog = applyOps(full, ops);
+        tabs[activeTab].data = full; renderActive(); populateRelDropdowns();
+        // green confirm flash on everything the AI touched, then clean classes
+        [...cls.addN, ...cls.modN].forEach(id=>{ const el=cy.getElementById(id); if(el.length){ el.addClass("flash-ok"); setTimeout(()=>el.removeClass("flash-ok"),1600); } });
+        box.innerHTML=`Accepted ${alog.length} change(s) ✓ <span style="color:var(--dim)">(⟲ undo: Ctrl+←)</span> <button id="undoImprove" class="secondary" style="padding:2px 8px">Undo</button>`;
+        document.getElementById("undoImprove").onclick=()=>{ doUndo(); };
+        aiTerm("sys",`accepted ${alog.length} AI change(s)`);
+      };
+    }catch(e){ box.innerHTML="Error: "+e.message; }
+    btn.textContent="AI Improve";
+  };
+  // unified physics debug config (accurate cose/boids options) + best default
+  const cfgEl = (id)=>document.getElementById(id);
+  const syncCfg = () => {
+    cfgEl("cRep").value=phys.rep; cfgEl("vRep").textContent=phys.rep;
+    cfgEl("cLen").value=phys.len; cfgEl("vLen").textContent=phys.len;
+    cfgEl("cSep").value=phys.sep; cfgEl("vSep").textContent=phys.sep;
+    cfgEl("cGrav").value=phys.grav; cfgEl("vGrav").textContent=phys.grav;
+  };
+  ["cRep","cLen","cSep","cGrav"].forEach(id=>cfgEl(id).addEventListener("input",()=>{
+    phys={rep:+cfgEl("cRep").value, len:+cfgEl("cLen").value, sep:+cfgEl("cSep").value, grav:+cfgEl("cGrav").value};
+    syncCfg();
+  }));
+  cfgEl("cReset").onclick=()=>{ phys=Object.assign({},BEST); localStorage.setItem("osint_phys",JSON.stringify(phys)); syncCfg(); renderActive(); };
+  cfgEl("cApply").onclick=()=>{ localStorage.setItem("osint_phys",JSON.stringify(phys)); save(); document.getElementById("settleBtn").click(); };
+  cfgEl("graphCfgBtn").onclick=(e)=>{ e.stopPropagation(); const d=cfgEl("graphCfg"); d.open=!d.open; };
+  cfgEl("cEdgeAlong").checked = edgeAlong;
+  cfgEl("cEdgeAlong").onchange=(e)=>{ edgeAlong=e.target.checked; localStorage.setItem("osint_edge_along",edgeAlong?"1":"0"); applyEdgeAlong(); };
+  applyEdgeAlong();
+  syncCfg();
+  document.getElementById("agentBtn").onclick = async () => {
+    if (activeTab<0) return;
+    const d = tabs[activeTab].data;
+    const agent = {graph:d, jsonld:{ "@context":"https://schema.org", "@graph": d.nodes.map(n=>({"@type":n.kind,"name":n.label,"identifier":n.id})) }, endpoints:{build:"POST /build", recommend:"POST /recommend", manifest:"GET /api/agent-manifest"}};
+    await navigator.clipboard.writeText(JSON.stringify(agent,null,2));
+    document.getElementById("agentBtn").textContent="Copied!";
+    setTimeout(()=>document.getElementById("agentBtn").textContent="Copy Agent JSON",1200);
+  };
+  // login: persist username+token, show state
+  const loginState = document.getElementById("loginState");
+  const refreshLogin = () => {
+    const u = localStorage.getItem("osint_user")||"";
+    if (u) { document.getElementById("username").value=u; loginState.textContent="✓ "+u; }
+    const t = localStorage.getItem("osint_token")||"";
+    if (t) document.getElementById("authtoken").value=t;
+  };
+  refreshLogin();
+  document.getElementById("loginBtn").onclick = async () => {
+    const username = document.getElementById("username").value.trim()||"anon";
+    const token = document.getElementById("authtoken").value.trim();
+    localStorage.setItem("osint_user",username); localStorage.setItem("osint_token",token);
+    try {
+      const r = await fetch(BACKEND+"/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,token})});
+      const j = await r.json();
+      loginState.textContent = j.ok ? "✓ "+j.user : "✗ "+(j.error||"login failed");
+    } catch(e){ loginState.textContent="offline (saved locally)"; }
+  };
+  const goBtn = document.getElementById("go");
+  const goText = document.getElementById("goText");
+  const goSpin = document.getElementById("goSpin");
+  const q = document.getElementById("q");
+
+  goBtn.onclick = async () => {
+    const text = q.value.trim();
+    if (!text) return;
+    goBtn.disabled = true; goText.style.display="none"; goSpin.style.display="block";
+    try {
+      const username = document.getElementById("username").value.trim();
+      const r = await fetch(BACKEND+"/build", { method:"POST", headers:{"Content-Type":"application/json","X-Username":username,"X-Auth-Token":localStorage.getItem("osint_token")||""}, body: JSON.stringify({text, username}) });
+      const data = await r.json();
+      render(data, text.slice(0,24));
+      populateRelDropdowns();
+      // update url
+      const enc = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+      const url = new URL(window.location.href);
+      url.searchParams.set("graph", enc);
+      window.history.replaceState({}, "", url.toString());
+    } catch (e) {
+      document.getElementById("flags").innerHTML = `<div class="flag">Backend error: ${e.message}. Start backend: python3 backend/server.py</div>`;
+    } finally {
+      goBtn.disabled = false; goText.style.display="inline"; goSpin.style.display="none";
+    }
+  };
+  q.addEventListener("keydown", e => { if ((e.ctrlKey||e.metaKey) && e.key==="Enter") goBtn.click(); });
+  // Ctrl+0: open 0shot on the selected node or relation.
+  // Hands off the FULL edge list (free, unrestricted) + focus via localStorage,
+  // opens 0shot.html with a JSON-answer prompt. The answer can be appended
+  // back onto the relation with the ⤺ button there (storage event below).
+  document.addEventListener("keydown", (e)=>{
+    if (!(e.ctrlKey||e.metaKey) || e.key!=="0") return;
+    if (activeTab < 0){ alert("Build or import a graph first."); return; }
+    e.preventDefault();
+    const selN = cy.$("node:selected"), selE = cy.$("edge:selected");
+    const d = tabs[activeTab].data;
+    const allEdges = d.edges.map(x=>({source:x.source,target:x.target,rel:x.rel}));
+    let focus, prompt;
+    if (selE.length) {
+      const el = selE[0], s = el.source(), t = el.target();
+      focus = { kind:"edge", source:s.id(), target:t.id(), rel:el.data("label"),
+                sLabel:s.data("label"), tLabel:t.data("label") };
+      prompt = `Analyze the relation "${focus.sLabel} —${focus.rel}→ ${focus.tLabel}". `
+        + `Reply with ONLY valid JSON: {"rel":"<relation word>","note":"<1-2 sentence analysis>"}.`;
+    } else if (selN.length) {
+      const n = selN[0];
+      focus = { kind:"node", id:n.id(), label:n.data("label"), k:n.data("kind") };
+      prompt = `Analyze the entity "${focus.label}" (${focus.kind}). `
+        + `Reply with ONLY valid JSON: {"label":"<entity>","note":"<1-2 sentence analysis>"}.`;
+    } else { alert("Select a node or a relation first (click it), then Ctrl+0."); return; }
+    try { localStorage.setItem("osint_0shot_handoff", JSON.stringify({ focus, edges:allEdges, at:Date.now() })); } catch(err){}
+    aiTerm("sys",`0shot handoff: ${focus.kind} + ${allEdges.length} edge(s) context`);
+    window.open("0shot.html?q="+encodeURIComponent(prompt)+"&format=json&from=graph", "_blank");
+  });
+  // pick up the 0shot answer and append it as content onto the relation/node
+  // + faithful graph edits from 0shot "Graph edits" mode (only what the user described)
+  window.addEventListener("storage", (ev)=>{
+    if (ev.key==="osint_0shot_ops" && ev.newValue) {
+      try {
+        const r = JSON.parse(ev.newValue);
+        if (activeTab < 0 || !Array.isArray(r.ops)) return;
+        const d = tabs[activeTab].data;
+        pushHist();
+        let an=0, ae=0;
+        for (const o of r.ops) {
+          if (o.op==="add_node" && o.id && !d.nodes.find(n=>n.id===o.id)) {
+            d.nodes.push({id:String(o.id), label:String(o.label||o.id), kind:String(o.kind||"Concept")}); an++;
+          } else if (o.op==="add_edge" && o.source && o.target
+              && d.nodes.find(n=>n.id===String(o.source)) && d.nodes.find(n=>n.id===String(o.target))
+              && !d.edges.find(e=>e.source===String(o.source)&&e.target===String(o.target)&&e.rel===String(o.rel||"related"))) {
+            d.edges.push({source:String(o.source), target:String(o.target), rel:String(o.rel||"related")}); ae++;
+          }
+        }
+        renderActive(); populateRelDropdowns(); renderTabs();
+        aiTerm("sys",`0shot edits applied faithfully: +${an} nodes +${ae} edges (as you described)`);
+      } catch(err){ aiTerm("sys","0shot ops error: "+err.message); }
+      return;
+    }
+    if (ev.key!=="osint_0shot_result" || !ev.newValue) return;
+    try {
+      const r = JSON.parse(ev.newValue);
+      if (activeTab < 0) return;
+      const d = tabs[activeTab].data;
+      const note = String(r.text||"").slice(0,2000);
+      if (r.focus && r.focus.kind==="edge") {
+        const e = d.edges.find(x=>x.source===r.focus.source&&x.target===r.focus.target&&(x.rel===r.focus.rel||true));
+        if (e) { e.attrs=e.attrs||{}; e.attrs.ai_note=note; aiTerm("sys",`0shot note appended to relation ${e.source} —${e.rel}→ ${e.target}`); }
+      } else if (r.focus && r.focus.kind==="node") {
+        const n = d.nodes.find(x=>x.id===r.focus.id);
+        if (n) { n.attrs=n.attrs||{}; n.attrs.ai_note=note; aiTerm("sys",`0shot note appended to node ${n.label}`); }
+      }
+      renderActive(); populateRelDropdowns(); renderTabs(); // persist via save()
+    } catch(err){ aiTerm("sys","0shot result error: "+err.message); }
+  });
+
+  // sensitive view controls: snappy zoom step, fit, big-view toggle
+  const zoomStep = (dir) => { try { const z=cy.zoom(), cx=cy.width()/2, ch=cy.height()/2; cy.zoom({level:Math.min(6,Math.max(0.1, dir>0?z*1.25:z/1.25)), renderedPosition:{x:cx,y:ch}}); } catch(e){} };
+  document.getElementById("zIn").onclick = () => zoomStep(1);
+  document.getElementById("zOut").onclick = () => zoomStep(-1);
+  document.getElementById("zFit").onclick = () => { try{ cy.fit(40); }catch(e){} };
+  const toggleBig = () => {
+    const p = document.querySelector(".panel");
+    const on = p.classList.toggle("big");
+    document.getElementById("zBig").textContent = on ? "✕" : "⛶";
+    setTimeout(()=>{ try{ cy.resize(); cy.fit(40); }catch(e){} }, 50);
+  };
+  document.getElementById("zBig").onclick = toggleBig;
+  document.getElementById("undoBtn").onclick = doUndo;
+  document.getElementById("redoBtn").onclick = doRedo;
+  paintHist();
+  document.addEventListener("keydown", (e)=>{
+    if (e.target.matches("input,textarea,select")) return;
+    if ((e.ctrlKey||e.metaKey) && e.key==="ArrowLeft") { e.preventDefault(); doUndo(); return; }
+    if ((e.ctrlKey||e.metaKey) && e.key==="ArrowRight") { e.preventDefault(); doRedo(); return; }
+    if ((e.ctrlKey||e.metaKey) && (e.key==="z"||e.key==="Z")) { e.preventDefault(); e.shiftKey?doRedo():doUndo(); return; }
+    if ((e.ctrlKey||e.metaKey) && (e.key==="y"||e.key==="Y")) { e.preventDefault(); doRedo(); return; }
+    if (e.key==="+"||e.key==="=") zoomStep(1);
+    else if (e.key==="-"||e.key==="_") zoomStep(-1);
+    else if (e.key==="0"&&(e.ctrlKey||e.metaKey)) return; // Ctrl+0 reserved for 0shot
+    else if (e.key==="f"||e.key==="F") { try{ cy.fit(40);}catch(err){} }
+    else if (e.key==="F11") { e.preventDefault(); toggleBig(); }
+    else if (e.key==="Escape") { const p=document.querySelector(".panel"); if(p.classList.contains("big")) toggleBig(); }
+  });
+
+  document.getElementById("settleBtn").onclick = () => {
+    if (activeTab < 0) return;
+    // one-shot boids settle: separation/cohesion/alignment solved offline, eased snap-in
+    try{ cy.stop(); }catch(e){}
+    if (viewMode === "force" && cy.nodes().length <= 400) boidsSettle();
+    else { cy.layout(fastLayout(cy.nodes().length)).run(); }
+    aiTerm("sys","settle: boids separation/cohesion/alignment ("+viewMode+" view)");
+  };
+  // merge whole graph file into the ACTIVE tab (ids deduped)
+  const mergeInput=document.createElement("input");
+  mergeInput.type="file"; mergeInput.accept="application/json"; mergeInput.style.display="none";
+  document.body.appendChild(mergeInput);
+  document.getElementById("mergeBtn").onclick = () => {
+    if (activeTab < 0){ alert("Build or import a graph first."); return; }
+    mergeInput.click();
+  };
+  mergeInput.addEventListener("change", async ()=>{
+    const f=mergeInput.files[0]; if(!f) return;
+    try{
+      const g=JSON.parse(await f.text());
+      const d=tabs[activeTab].data;
+      const ids=new Set(d.nodes.map(n=>n.id));
+      let an=0, ae=0;
+      for(const n of (g.nodes||[])){ if(!ids.has(n.id)){ d.nodes.push(n); ids.add(n.id); an++; } }
+      const es=new Set(d.edges.map(e=>e.source+">"+e.target));
+      for(const e of (g.edges||[])){ const k=e.source+">"+e.target; if(ids.has(e.source)&&ids.has(e.target)&&!es.has(k)){ d.edges.push(e); es.add(k); ae++; } }
+      renderActive(); populateRelDropdowns();
+      aiTerm("sys",`merged ${f.name}: +${an} nodes +${ae} edges`);
+    }catch(err){ alert("Invalid JSON: "+err.message); }
+    mergeInput.value="";
+  });
+  // improve ONE node: selected node + neighborhood -> /improve -> preview/apply
+  document.getElementById("improveNodeBtn").onclick = async () => {
+    if (activeTab < 0) return;
+    const sel=cy.$("node:selected");
+    if(!sel.length){ alert("Select a node first (click it)."); return; }
+    const nid=sel[0].id();
+    const nb=sel[0].closedNeighborhood();
+    const subNodes=nb.nodes().map(n=>({id:n.id(),label:n.data("label"),kind:n.data("kind")}));
+    const subEdges=nb.edges().map(e=>({source:e.source().id(),target:e.target().id(),rel:e.data("label")}));
+    const box=document.getElementById("recs");
+    box.innerHTML="Improving node "+nid+"…";
+    try{
+      const r=await fetch(BACKEND+"/improve",{method:"POST",headers:aiHeaders(),
+        body:JSON.stringify({input:(document.getElementById("improveInput").value||"improve this node and its neighborhood: fix labels, drop junk, add missing links")+" [focus node: "+nid+"]",
+          nodes:subNodes, edges:subEdges, tools:aiTools(), prompt:document.getElementById("improvePrompt").value||undefined})});
+      const j=await r.json();
+      const ops=j.ops||[];
+      if(!ops.length){ box.innerHTML="No improvements."+(j.error?" ("+j.error+")":""); return; }
+      const data=tabs[activeTab].data, before=JSON.stringify(data);
+      const log=applyOps(data, ops);
+      renderActive(); populateRelDropdowns();
+      box.innerHTML=`<div style="font-size:12px;margin-bottom:6px">Node ${nid}: applied ${log.length} ops <button id="undoNode" class="secondary" style="padding:2px 8px">Undo</button></div>`+
+        log.map(l=>`<div style="font-size:11px;color:var(--dim)">• ${l}</div>`).join("");
+      document.getElementById("undoNode").onclick=()=>{ tabs[activeTab].data=JSON.parse(before); renderActive(); populateRelDropdowns(); };
+    }catch(e){ box.innerHTML="Error: "+e.message; }
+  };
+  // PNG export (cytoscape render)
+  document.getElementById("pngBtn").onclick = () => {
+    if (activeTab < 0) return;
+    const url = cy.png({output:"blob", bg:"#0a0f1e", full:true, scale:2});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(url); a.download=(tabs[activeTab].name||"graph")+".png"; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+  };
+  // SVG export (manual serializer from live positions)
+  document.getElementById("svgBtn").onclick = () => {
+    if (activeTab < 0) return;
+    const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    let parts=[];
+    cy.edges().forEach(e=>{ const s=e.source().position(), t=e.target().position();
+      parts.push(`<line x1="${s.x}" y1="${s.y}" x2="${t.x}" y2="${t.y}" stroke="#64748b" stroke-width="1.5"/><text x="${(s.x+t.x)/2}" y="${(s.y+t.y)/2}" fill="#94a3b8" font-size="9">${esc(e.data("label")||"")}</text>`); });
+    cy.nodes().forEach(n=>{ const p=n.position(), c=n.data("color")||"#94a3b8";
+      parts.push(`<circle cx="${p.x}" cy="${p.y}" r="16" fill="#0a0f1e" stroke="${c}" stroke-width="2"/><text x="${p.x}" y="${p.y+30}" fill="#e2e8f0" font-size="10" text-anchor="middle">${esc(n.data("label")||"")}</text>`); });
+    const bb=cy.elements().boundingBox(); const w=Math.max(200,bb.w+120), h=Math.max(200,bb.h+140);
+    const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="${bb.x1-60} ${bb.y1-70} ${w} ${h}"><rect x="${bb.x1-60}" y="${bb.y1-70}" width="${w}" height="${h}" fill="#0a0f1e"/>${parts.join("")}</svg>`;
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(new Blob([svg],{type:"image/svg+xml"})); a.download=(tabs[activeTab].name||"graph")+".svg"; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+  };
+  // ---- path picking: click 🛤 then A then B, or right-click A anchor → right-click B path ----
+  let pathAnchor = null, pathMode = false;
+  let pathEls = cy.collection(); // highlighted path (nodes+edges)
+  const paintHint = () => {
+    const h = document.getElementById("graphHint"); if(!h) return;
+    const sel = cy.$("node:selected").length, pe = cy.$("edge:selected").length;
+    if (pathMode) h.innerHTML = pathAnchor
+      ? `🛤 path mode: anchor <b>${pathAnchor}</b> — now <span class="on">click target node B</span> (or Esc to cancel)`
+      : `🛤 path mode: <span class="on">click start node A</span> (or Esc to cancel)`;
+    else if (pathAnchor) h.innerHTML = `anchor <b>${pathAnchor}</b> · right-click B → Select path · ${sel} node(s) ${pe} edge(s) selected`;
+    else h.innerHTML = `Click nodes to select · <b>right-click</b> a node for Ask / Path menu · <b>🛤</b> = path-pick mode`;
+    document.getElementById("pathMode").style.borderColor = pathMode ? "#7dd3fc" : "";
+    document.getElementById("pathMode").style.color = pathMode ? "#7dd3fc" : "";
+  };
+  document.getElementById("pathMode").onclick = () => {
+    pathMode = !pathMode; pathAnchor = null;
+    cy.elements().removeClass("anchor");
+    paintHint();
+    aiTerm("sys", pathMode ? "path mode ON: click node A, then node B" : "path mode OFF");
+  };
+  const findPath = (a, b) => {
+    if (activeTab < 0) return null;
+    const d = tabs[activeTab].data;
+    const adj = {};
+    for (const n of d.nodes) adj[n.id] = [];
+    for (const e of d.edges) { (adj[e.source]=adj[e.source]||[]).push({to:e.target, e}); (adj[e.target]=adj[e.target]||[]).push({to:e.source, e}); }
+    const prev = {[a]: null}, prevE = {}, q = [a], seen = new Set([a]);
+    while (q.length) {
+      const cur = q.shift();
+      if (cur === b) break;
+      for (const {to, e} of (adj[cur]||[])) if (!seen.has(to)) { seen.add(to); prev[to]=cur; prevE[to]=e; q.push(to); }
+    }
+    if (!seen.has(b)) return null;
+    const nodes=[b], edges=[]; let c=b;
+    while (prev[c]!==null&&prev[c]!==undefined) { edges.push(prevE[c]); c=prev[c]; nodes.push(c); }
+    return {nodes: nodes.reverse(), edges};
+  };
+  const selectPath = (a, b) => {
+    const p = findPath(a, b);
+    if (!p) { aiTerm("sys",`no path ${a} → ${b}`); return; }
+    cy.elements().unselect();
+    pathEls = cy.collection();
+    for (const id of p.nodes) { const n=cy.getElementById(id); if(n.length){ n.select(); pathEls.merge(n); } }
+    for (const e of p.edges) {
+      const el = cy.edges().filter(x=>x.source().id()===e.source&&x.target().id()===e.target&&x.data("rel")===e.rel);
+      (el.length?el:cy.edges(`[source="${e.source}"][target="${e.target}"]`)).select().forEach(x=>pathEls.merge(x));
+    }
+    paintSelection();
+    try{paintHint();}catch(_){}
+    aiTerm("sys",`path selected: ${p.nodes.join(" → ")} (${p.edges.length} edge(s)) — use menu to set relation`);
+  };
+  // node right-click menu lives INSIDE the graph panel (absolute, clamped)
+  const ctxMenu=document.getElementById("ctxMenu");
+  const panel=document.querySelector(".panel");
+  // path-mode: click A then click B (no menu needed); Esc cancels; click inside panel closes menu
+  cy.on("tap","node",(e)=>{
+    if (!pathMode) return;
+    const id = e.target.id();
+    if (!pathAnchor) {
+      pathAnchor = id;
+      cy.elements().removeClass("anchor");
+      e.target.addClass("anchor");
+      paintHint();
+      aiTerm("sys","path anchor ⚓ "+id+" — now click target node B");
+    } else if (id !== pathAnchor) {
+      selectPath(pathAnchor, id);
+      cy.elements().removeClass("anchor");
+      pathAnchor = null; pathMode = false;
+      paintHint();
+    }
+  });
+  panel.addEventListener("click",(e)=>{ if(e.target.closest("#ctxMenu")) return; ctxMenu.style.display="none"; });
+  document.addEventListener("keydown",(e)=>{
+    if (e.key==="Escape") {
+      ctxMenu.style.display="none";
+      if (pathMode || pathAnchor) { pathMode=false; pathAnchor=null; cy.elements().removeClass("anchor"); paintHint(); }
+    }
+  });
+  let ctxNode=null;
+  const SHOT_DEFAULT = "Explain this selection in plain English: what is it and why does it matter?";
+  cy.on("cxttap","node",(e)=>{
+    const n=e.target; ctxNode=n.id();
+    if (!n.selected()) n.select(); // right-click adds to multi-select
+    paintSelection();
+    const rp=e.renderedPosition, pw=panel.clientWidth, ph=panel.clientHeight;
+    const savedPrompt = localStorage.getItem("osint_0shot_prompt") || SHOT_DEFAULT;
+    const selIds = cy.$("node:selected").map(x=>x.id());
+    ctxMenu.innerHTML=`<div class="hd">● ${n.data("label")} · ${selIds.length} selected${pathAnchor?` · ⚓ ${pathAnchor}`:""}</div>
+      <div class="sec">Ask 0shot (English)</div>
+      <textarea id="ctxPrompt" rows="2">${savedPrompt.replace(/</g,"&lt;")}</textarea>
+      <button data-act="shot" class="act go">🚀 Run in new tab</button>
+      <div class="sec">Path${pathAnchor?` · ⚓ ${pathAnchor} → ${ctxNode}`:""}</div>
+      <button data-act="anchor" class="act">📍 ${pathAnchor===ctxNode?"✓ Anchor here (tap B → path)":"Start path here (A)"}</button>
+      <button data-act="path" class="act">🛤 ${pathAnchor&&pathAnchor!==ctxNode?`Finish path → ${ctxNode}`:"Pick path to here (needs A)"}</button>
+      <button data-act="relpath" class="act">✏️ Label this path…</button>
+      <div class="sec">Node</div>
+      <div style="display:flex;gap:4px">
+      <button data-act="rename" class="act" style="flex:1" title="Rename">✏️</button>
+      <button data-act="dup" class="act" style="flex:1" title="Duplicate">⧉</button>
+      <button data-act="del" class="act" style="flex:1;color:#fb7185" title="Delete">🗑</button></div>`;
+    ctxMenu.style.display="block";
+    ctxMenu.style.left=Math.max(8,Math.min(rp.x+12, pw-244))+"px";
+    ctxMenu.style.top=Math.max(8,Math.min(rp.y+12, ph-320))+"px";
+    const ta = ctxMenu.querySelector("#ctxPrompt");
+    ta.oninput = ()=>localStorage.setItem("osint_0shot_prompt", ta.value);
+    ta.onclick = (ev)=>ev.stopPropagation();
+    ctxMenu.querySelectorAll("button").forEach(b=>b.onclick=()=>{
+      const d=tabs[activeTab].data; const act=b.dataset.act;
+      const node=d.nodes.find(x=>x.id===ctxNode);
+      if(act==="shot"){
+        const prompt = (ta.value||SHOT_DEFAULT).trim();
+        const sel = cy.$("node:selected").map(x=>({id:x.id(),label:x.data("label"),kind:x.data("kind")}));
+        const subEdges = cy.$("edge:selected,node:selected").edgesWith(cy.$("node:selected")).map(x=>({source:x.source().id(),target:x.target().id(),rel:x.data("rel")}));
+        const allEdges = d.edges.map(x=>({source:x.source,target:x.target,rel:x.rel}));
+        try { localStorage.setItem("osint_0shot_handoff", JSON.stringify({focus:{kind:"multi",nodes:sel}, edges:allEdges, subEdges, prompt, at:Date.now()})); } catch(err){}
+        const q = prompt + "\\n\\n[selected nodes: " + sel.map(s=>s.label+" ("+s.id+")").join(", ") + "]"
+          + (subEdges.length ? "\\n[involved relations: " + subEdges.map(x=>x.source+" —"+x.rel+"→ "+x.target).join("; ") + "]" : "");
+        aiTerm("sys",`0shot handoff: ${sel.length} node(s) + ${allEdges.length} edge(s) context (English answer)`);
+        window.open("0shot.html?q="+encodeURIComponent(q)+"&format=answer&from=graph", "_blank");
+      }
+      else if(act==="anchor"){ pathAnchor=ctxNode; cy.elements().removeClass("anchor"); const an=cy.getElementById(ctxNode); if(an.length) an.addClass("anchor"); paintHint(); aiTerm("sys","path anchor ⚓ "+pathAnchor+" — right-click a second node → Finish path"); }
+      else if(act==="path"){ if(!pathAnchor){ aiTerm("sys","tap 'Start path here (A)' on this node first, then right-click B → Finish path"); } else if(pathAnchor===ctxNode){ aiTerm("sys","anchor is this node — right-click a DIFFERENT node → Finish path"); } else { selectPath(pathAnchor, ctxNode); cy.elements().removeClass("anchor"); pathAnchor=null; pathMode=false; paintHint(); } }
+      else if(act==="relpath"){
+        const selE = cy.$("edge:selected");
+        if(!selE.length){ alert("No path/edges selected — right-click a node → Select path first."); return; }
+        const v = prompt(`Set relation word for all ${selE.length} edge(s) of the path:`, selE[0].data("rel")||"related");
+        if(v && v.trim()){
+          pushHist();
+          const ids = selE.map(x=>x.source().id()+"|"+x.target().id());
+          let n=0;
+          for(const de of d.edges){ if(ids.includes(de.source+"|"+de.target)){ de.rel=v.trim(); n++; } }
+          aiTerm("sys",`path relation set: ${n} edge(s) → (${v.trim()}) — ⟲ undo available (Ctrl+←)`);
+          renderActive(); populateRelDropdowns();
+        }
+      }
+      else if(act==="del"){ pushHist(); d.nodes=d.nodes.filter(x=>x.id!==ctxNode); d.edges=d.edges.filter(x=>x.source!==ctxNode&&x.target!==ctxNode); }
+      else if(act==="dup"&&node){ pushHist(); const c=JSON.parse(JSON.stringify(node)); c.id=node.id+"_copy"+Date.now()%10000; c.label=node.label+" (copy)"; c.data={...c.data,id:c.id,label:c.label}; d.nodes.push(c); }
+      else if(act==="rename"&&node){ const v=prompt("Rename node:",node.label); if(v){ pushHist(); node.label=v; node.data.label=v;} }
+      if(act!=="shot"){ ctxMenu.style.display="none"; if(act!=="anchor"&&act!=="path") { renderActive(); populateRelDropdowns(); } }
+      else ctxMenu.style.display="none";
+    });
+  });
+  // export: graph -> clean JSON -> file in one smooth flow (timestamped name, status in log)
+  const graphToJSON = (pretty=true) => {
+    if (activeTab < 0) return null;
+    const d = tabs[activeTab].data;
+    const doc = { app:"cvm-osint", version:1, exported:new Date().toISOString(),
+      layer:tabs[activeTab].name, nodes:normData(d).nodes, edges:normData(d).edges,
+      adversarial:normData(d).adversarial||[] };
+    return pretty ? JSON.stringify(doc, null, 2) : JSON.stringify(doc);
+  };
+  const downloadJSON = (text, name) => {
+    const blob = new Blob([text], {type:"application/json"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+  };
+  document.getElementById("exportBtn").onclick = () => {
+    const text = graphToJSON(true);
+    if (!text) { aiTerm("sys","nothing to export"); return; }
+    const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
+    const d = tabs[activeTab].data;
+    downloadJSON(text, `${tabs[activeTab].name||"graph"}-${stamp}.json`);
+    aiTerm("sys",`exported ${d.nodes.length} nodes + ${d.edges.length} edges → file ✓ (also in clipboard-ready JSON)`);
+  };
+  // import: file -> validated JSON -> layer, tolerant of raw {nodes,edges} or {layer,nodes,edges} docs
+  const fileInput = document.getElementById("fileInput");
+  document.getElementById("importBtn").onclick = () => fileInput.click();
+  fileInput.addEventListener("change", async (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const text = await f.text();
+    try {
+      const raw = JSON.parse(text);
+      const data = (raw && (raw.nodes || raw.edges)) ? raw : (raw.data || raw.graph || raw);
+      render(normData(data), (raw.layer || f.name).replace(/\.json$/,""));
+      aiTerm("sys",`imported ${f.name} ✓`);
+      populateRelDropdowns();
+    } catch(err) { alert("Invalid JSON: "+err.message); }
+    fileInput.value = "";
+  });
+
+  // boot: restore persisted layers first (persistence is the default view)
+  const restored = loadState();
+  // load from URL param (adds a layer on top)
+  const params = new URLSearchParams(window.location.search);
+  const g = params.get("graph");
+  if (g) {
+    try {
+      const data = JSON.parse(decodeURIComponent(escape(atob(g))));
+      render(data, "Imported from URL");
+      populateRelDropdowns();
+    } catch(e) { console.error("bad url graph", e); }
+  }
+  if (activeTab < 0 && tabs.length) activeTab = 0;
+  renderActive();
+  populateRelDropdowns();
+  renderTabs();
+  if (restored) aiTerm("sys","restored "+tabs.length+" layer(s) from localStorage");
+</script>
+<style>
+#aiTerm{position:fixed;left:0;right:0;bottom:0;z-index:999;background:rgba(5,8,16,.55);backdrop-filter:blur(8px);border-top:1px solid rgba(255,255,255,.08);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:rgba(226,232,240,.92);}
+#aiTermHead{display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;user-select:none;color:rgba(226,232,240,.9);}
+#aiTermDot{width:8px;height:8px;border-radius:50%;background:#a3e635;box-shadow:0 0 6px #a3e635;}
+#aiTermBody{max-height:180px;overflow-y:auto;padding:4px 12px 10px;white-space:pre-wrap;word-break:break-word;background:transparent;}
+#aiTermBody .t{color:rgba(148,163,184,.85);}
+#aiTermBody .out{color:rgba(250,204,21,.95);}
+#aiTermBody .in{color:rgba(134,239,172,.95);}
+#aiTermBody .sys{color:rgba(148,163,184,.9);}
+#aiTermBody .h{color:rgba(125,211,252,.7);font-size:10px;margin-right:6px;}
+#aiTermTools{display:flex;gap:6px;align-items:center;margin-left:auto;}
+#aiTermTools input{background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.12);color:#e2e8f0;border-radius:6px;padding:2px 8px;font-size:11px;font-family:inherit;width:140px;}
+#aiTermTools button{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:#e2e8f0;border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;}
+</style>
+<div id="aiTerm"><div id="aiTermHead"><span id="aiTermDot"></span><span>AI LOG</span><span id="aiTermCount" style="opacity:.8">0 events</span><span id="aiTermTools"><input id="aiTermFilter" placeholder="filter history…" title="filter log lines"/><button id="aiTermCopy" title="copy filtered log">⧉</button><button id="aiTermClear" title="clear log">✕</button></span><span style="opacity:.7">▲▼ toggle</span></div><div id="aiTermBody"></div></div>
+<script>
+(function(){
+  let n=0, open=true, hist=[];
+  const body=document.getElementById("aiTermBody"), head=document.getElementById("aiTermHead"), cnt=document.getElementById("aiTermCount");
+  const filt=document.getElementById("aiTermFilter");
+  head.onclick=(e)=>{ if(e.target.closest("#aiTermTools")) return; open=!open; body.style.display=open?"block":"none"; };
+  filt.onclick=(e)=>e.stopPropagation();
+  filt.oninput=()=>{ const q=filt.value.toLowerCase(); [...body.children].forEach(d=>{ d.style.display=!q||d.textContent.toLowerCase().includes(q)?"":"none"; }); };
+  document.getElementById("aiTermClear").onclick=(e)=>{ e.stopPropagation(); body.innerHTML=""; hist=[]; n=0; cnt.textContent="0 events"; };
+  document.getElementById("aiTermCopy").onclick=(e)=>{ e.stopPropagation(); navigator.clipboard.writeText(hist.join("\n")).catch(()=>{}); };
+  const hash=(s)=>{ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h.toString(16).slice(0,7).padStart(7,"0"); };
+  window.aiTerm=(dir,msg)=>{
+    n++; cnt.textContent=n+" events";
+    const ts=new Date().toLocaleTimeString(), h=hash(dir+msg+n);
+    hist.push(`[${ts}] ${h} ${dir} ${String(msg).replace(/<[^>]*>/g,"")}`);
+    if(hist.length>500) hist=hist.slice(-500);
+    const d=document.createElement("div");
+    d.innerHTML=`<span class="h">${h}</span><span class="t">[${ts}]</span> <span class="${dir}">${dir==="out"?"→ OUT":dir==="in"?"← IN":"• SYS"}</span> <span>${msg}</span>`;
+    const q=filt.value.toLowerCase();
+    if(q&&!d.textContent.toLowerCase().includes(q)) d.style.display="none";
+    body.appendChild(d);
+    while(body.children.length>200) body.firstChild.remove();
+    if(open) body.scrollTop=body.scrollHeight;
+  };
+  const AI_PATHS=["/build","/recommend","/improve","/investigate","/define","/exec","/login"];
+  const _fetch=window.fetch.bind(window);
+  window.fetch=async (url,opts)=>{
+    const u=String(url);
+    const hit=AI_PATHS.find(p=>u.includes(p));
+    if(hit){
+      let brief=""; try{ brief=(opts&&opts.body?String(opts.body):"").slice(0,300); }catch(e){}
+      aiTerm("out",`${(opts&&opts.method)||"GET"} ${hit} ${brief.replace(/</g,"&lt;")}`);
+    }
+    try{
+      const r=await _fetch(url,opts);
+      if(hit){
+        const c=r.clone(); c.text().then(t=>aiTerm("in",`${hit} [${r.status}] ${t.slice(0,300).replace(/</g,"&lt;")}`)).catch(()=>{});
+      }
+      return r;
+    }catch(e){ if(hit) aiTerm("in",`${hit} ERROR ${String(e).slice(0,200)}`); throw e; }
+  };
+  aiTerm("sys","AI event log active — every AI request/response is recorded here.");
+})();
+</script>
+</body>
+</html>
