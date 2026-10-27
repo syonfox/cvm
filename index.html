@@ -2568,7 +2568,7 @@
 #aiTermTools input{background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.12);color:#e2e8f0;border-radius:6px;padding:2px 8px;font-size:11px;font-family:inherit;width:140px;}
 #aiTermTools button{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:#e2e8f0;border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;}
 </style>
-<div id="aiTerm"><div id="aiTermHead"><span id="aiTermDot"></span><span>AI LOG</span><span id="aiTermCount" style="opacity:.8">0 events</span><span id="aiTermTools"><input id="aiTermFilter" placeholder="filter history…" title="filter log lines"/><button id="aiTermCopy" title="copy filtered log"><i class="fa-solid fa-copy"></i></button><button id="aiTermClear" title="clear log"><i class="fa-solid fa-xmark"></i></button></span><span id="aiTermToggleLbl" style="opacity:.7">▲▼ toggle</span><span id="aiTermGrip" title="drag to resize (double-click resets)"><span></span></span></div><div id="aiTermBody"></div><div id="aiTermCmd"><span style="color:#38bdf8">❯</span><input id="aiTermInput" placeholder="ask 0shot… (Enter sends, Esc clears)" autocomplete="off" spellcheck="false"/><button id="aiTermSend">send</button></div></div>
+<div id="aiTerm"><div id="aiTermHead"><span id="aiTermDot"></span><span>AI LOG</span><span id="aiTermCount" style="opacity:.8">0 events</span><span id="aiTermTools"><input id="aiTermFilter" placeholder="filter history…" title="filter log lines"/><button id="aiTermCopy" title="copy filtered log"><i class="fa-solid fa-copy"></i></button><button id="aiTermClear" title="clear log"><i class="fa-solid fa-xmark"></i></button></span><span id="aiTermToggleLbl" style="opacity:.7">▲▼ toggle</span><span id="aiTermGrip" title="drag to resize (double-click resets)"><span></span></span></div><div id="aiTermBody"></div><div id="aiTermCmd"><span style="color:#38bdf8">❯</span><input id="aiTermInput" placeholder="shell → /exec (bash) · .clear · .help (Enter runs, Esc clears)" autocomplete="off" spellcheck="false"/><button id="aiTermSend">send</button></div></div>
 <!-- node page split-view: living page + context chat per node (SpacetimeDB-backed) -->
 <div id="nodePage">
   <div style="display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border)">
@@ -2661,22 +2661,41 @@
     grip.addEventListener("pointercancel",up,{once:true});
   });
   addEventListener("resize",apply);
-  // command box: only when the log owns >55% of the screen; Enter sends to /zero
+  // command box: only when the log owns >55% of the screen; Enter runs the shell
+  // clean message interface for future chat/CLI hacks: window.osintShell.send(text)
+  // dot-commands are intercepted locally (.clear, .help, …); everything else → /exec
+  const shellCmds={
+    ".clear":()=>{ clearLog(); aiTerm("sys","log cleared (.clear)"); return null; },
+    ".help":()=>".clear — clear this log · .help — this list · anything else runs as bash via POST /exec",
+  };
+  window.osintShell={
+    commands:shellCmds,
+    addCommand:(name,fn)=>{ shellCmds[String(name)]=fn; },
+    exec:async(code,lang="bash")=>{
+      const B=(window.osintBackend&&window.osintBackend())||"";
+      const H=(window.osintAiHeaders&&window.osintAiHeaders())||{"Content-Type":"application/json"};
+      const r=await fetch(B+"/exec",{method:"POST",headers:H,body:JSON.stringify({lang,code}),trace:false});
+      return r.json().catch(()=>({ok:false,output:"bad exec response"}));
+    },
+    send:async(text)=>{
+      const q=String(text||"").trim();
+      if(!q) return;
+      const dot=q.split(/\s+/)[0].toLowerCase();
+      if(shellCmds[dot]){ const r=await shellCmds[dot](q); if(r) aiTerm("sys",r); return; }
+      aiTerm("out","❯ "+q.slice(0,500));
+      try{
+        const j=await window.osintShell.exec(q);
+        const out=String((j&&(j.output||j.error))||"").trim()||"(empty output)";
+        aiTerm("in",(j&&j.ok?"ok":"fail")+(j&&j.mode?" ["+j.mode+"]":"")+" · "+out.slice(0,3000));
+      }catch(e){ aiTerm("in","fail · "+String(e&&e.message||e).slice(0,200)); }
+    },
+  };
   const sendCmd=async()=>{
     const q=cmdIn.value.trim();
     if(!q||cmdBtn.disabled) return;
     cmdBtn.disabled=true;
-    try{
-      const B=(window.osintBackend&&window.osintBackend())||"";
-      const H=(window.osintAiHeaders&&window.osintAiHeaders())||{"Content-Type":"application/json"};
-      const r=await fetch(B+"/zero",{method:"POST",headers:H,body:JSON.stringify({q,ctx:"term command"})});
-      const j=await r.json().catch(()=>({}));
-      const t=((j&&j.text)||"").trim();
-      if(t) aiTerm("sys","❯ "+q.slice(0,160)+" → "+t.slice(0,600));
-      else aiTerm("sys","❯ "+q.slice(0,160)+" → (no answer"+(j&&j.timed_out?" — timed out":"")+"; nothing written)");
-      cmdIn.value="";
-    }catch(e){ aiTerm("sys","command failed: "+String(e&&e.message||e).slice(0,160)); }
-    cmdBtn.disabled=false; cmdIn.focus();
+    try{ await window.osintShell.send(q); cmdIn.value=""; }
+    finally{ cmdBtn.disabled=false; cmdIn.focus(); }
   };
   cmdBtn.onclick=(e)=>{ e.stopPropagation(); sendCmd(); };
   cmdIn.addEventListener("keydown",(e)=>{ e.stopPropagation(); if(e.key==="Enter") sendCmd(); else if(e.key==="Escape"){ cmdIn.value=""; cmdIn.blur(); } });
@@ -2684,7 +2703,8 @@
   apply();
   filt.onclick=(e)=>e.stopPropagation();
   filt.oninput=()=>{ const q=filt.value.toLowerCase(); [...body.children].forEach(d=>{ d.style.display=!q||d.textContent.toLowerCase().includes(q)?"":"none"; }); };
-  document.getElementById("aiTermClear").onclick=(e)=>{ e.stopPropagation(); body.innerHTML=""; hist=[]; n=0; cnt.textContent="0 events"; };
+  const clearLog=()=>{ body.innerHTML=""; hist=[]; n=0; cnt.textContent="0 events"; };
+  document.getElementById("aiTermClear").onclick=(e)=>{ e.stopPropagation(); clearLog(); };
   document.getElementById("aiTermCopy").onclick=(e)=>{ e.stopPropagation(); navigator.clipboard.writeText(hist.join("\n")).catch(()=>{}); };
   const hash=(s)=>{ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h.toString(16).slice(0,7).padStart(7,"0"); };
   window.aiTerm=(dir,msg)=>{
@@ -2704,18 +2724,19 @@
   const _fetch=window.fetch.bind(window);
   window.fetch=async (url,opts)=>{
     const u=String(url);
+    const quiet=!!(opts&&opts.trace===false); // shell transcript logs itself; skip double lines
     const hit=AI_PATHS.find(p=>u.includes(p));
-    if(hit){
+    if(hit&&!quiet){
       let brief=""; try{ brief=(opts&&opts.body?String(opts.body):"").slice(0,300); }catch(e){}
       aiTerm("out",`${(opts&&opts.method)||"GET"} ${hit} ${brief.replace(/</g,"&lt;")}`);
     }
     try{
       const r=await _fetch(url,opts);
-      if(hit){
+      if(hit&&!quiet){
         const c=r.clone(); c.text().then(t=>aiTerm("in",`${hit} [${r.status}] ${t.slice(0,300).replace(/</g,"&lt;")}`)).catch(()=>{});
       }
       return r;
-    }catch(e){ if(hit) aiTerm("in",`${hit} ERROR ${String(e).slice(0,200)}`); throw e; }
+    }catch(e){ if(hit&&!quiet) aiTerm("in",`${hit} ERROR ${String(e).slice(0,200)}`); throw e; }
   };
   aiTerm("sys","AI event log active — every AI request/response is recorded here.");
 })();
