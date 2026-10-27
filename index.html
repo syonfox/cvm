@@ -125,6 +125,7 @@
         <label>Link length <span id="vLen"></span><input id="cLen" type="range" min="60" max="900" step="5" style="width:100%"></label>
         <label>Anti-bunch radius <span id="vSep"></span><input id="cSep" type="range" min="60" max="260" step="5" style="width:100%"></label>
         <label>Gravity <span id="vGrav"></span><input id="cGrav" type="range" min="0" max="2" step="0.05" style="width:100%"></label>
+        <label>Text size <span id="vTxt"></span><input id="cTxt" type="range" min="0.6" max="2" step="0.1" style="width:100%"></label>
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input id="cEdgeAlong" type="checkbox" checked style="width:16px;height:16px;accent-color:#a3e635"> relation text along the line</label>
         <div style="display:flex;gap:6px"><button id="cReset" class="secondary" style="flex:1">Best default</button><button id="cApply" class="secondary" style="flex:1">Apply + Settle</button></div>
       </div>
@@ -481,7 +482,7 @@
       try{
         for(const t of tabs) t.data=normData(t.data);
         localStorage.setItem(LS_KEY, JSON.stringify({tabs, activeTab, tabCounter,
-          settings:{phys, view:viewMode, toolWeb:document.getElementById("toolWeb").checked, toolExec:document.getElementById("toolExec").checked}}));
+          settings:{phys, view:viewMode, text:textScale, toolWeb:document.getElementById("toolWeb").checked, toolExec:document.getElementById("toolExec").checked}}));
         const nn=tabs.reduce((a,t)=>a+(t.data.nodes||[]).length,0);
         storeStatus(`saved ✓ ${tabs.length} layer(s) · ${nn} nodes · ${new Date().toLocaleTimeString()}`);
       }catch(e){ storeStatus("save failed: "+e.message); }
@@ -497,6 +498,7 @@
       if(st.settings){
         if(st.settings.phys) phys=Object.assign({},BEST,st.settings.phys);
         if(st.settings.view){ viewMode=st.settings.view; localStorage.setItem("osint_view",viewMode); }
+        if(st.settings.text){ textScale=parseFloat(st.settings.text)||1; localStorage.setItem("osint_text",String(textScale)); try{applyTextSize();}catch(_){} }
         if(st.settings.toolWeb===false){ localStorage.setItem("osint_tool_web","0"); document.getElementById("toolWeb").checked=false; }
         if(st.settings.toolExec===true){ localStorage.setItem("osint_tool_exec","1"); document.getElementById("toolExec").checked=true; }
       }
@@ -1080,23 +1082,35 @@
     btn.textContent="AI Improve";
   };
   // unified physics debug config (accurate cose/boids options) + best default
+  // global graph text size (QoL): scales node + relation labels, persisted
+  let textScale = parseFloat(localStorage.getItem("osint_text") || "1") || 1;
+  const applyTextSize = () => {
+    try {
+      cy.style().selector("node").style({ "font-size": Math.round(11 * textScale), "text-margin-y": Math.round(8 * textScale) }).update();
+      cy.style().selector("edge").style({ "font-size": Math.max(7, Math.round(9 * textScale)) }).update();
+    } catch (_) {}
+    try { localStorage.setItem("osint_text", String(textScale)); } catch (_) {}
+  };
   const cfgEl = (id)=>document.getElementById(id);
   const syncCfg = () => {
     cfgEl("cRep").value=phys.rep; cfgEl("vRep").textContent=phys.rep;
     cfgEl("cLen").value=phys.len; cfgEl("vLen").textContent=phys.len;
     cfgEl("cSep").value=phys.sep; cfgEl("vSep").textContent=phys.sep;
     cfgEl("cGrav").value=phys.grav; cfgEl("vGrav").textContent=phys.grav;
+    cfgEl("cTxt").value=textScale; cfgEl("vTxt").textContent=Math.round(textScale*100)+"%";
   };
   ["cRep","cLen","cSep","cGrav"].forEach(id=>cfgEl(id).addEventListener("input",()=>{
     phys={rep:+cfgEl("cRep").value, len:+cfgEl("cLen").value, sep:+cfgEl("cSep").value, grav:+cfgEl("cGrav").value};
     syncCfg();
   }));
+  cfgEl("cTxt").addEventListener("input",()=>{ textScale=+cfgEl("cTxt").value || 1; syncCfg(); applyTextSize(); });
   cfgEl("cReset").onclick=()=>{ phys=Object.assign({},BEST); localStorage.setItem("osint_phys",JSON.stringify(phys)); syncCfg(); renderActive(); };
   cfgEl("cApply").onclick=()=>{ localStorage.setItem("osint_phys",JSON.stringify(phys)); save(); document.getElementById("settleBtn").click(); };
   cfgEl("graphCfgBtn").onclick=(e)=>{ e.stopPropagation(); const d=cfgEl("graphCfg"); d.open=!d.open; };
   cfgEl("cEdgeAlong").checked = edgeAlong;
   cfgEl("cEdgeAlong").onchange=(e)=>{ edgeAlong=e.target.checked; localStorage.setItem("osint_edge_along",edgeAlong?"1":"0"); applyEdgeAlong(); };
   applyEdgeAlong();
+  applyTextSize();
   syncCfg();
   document.getElementById("agentBtn").onclick = async () => {
     if (activeTab<0) return;
@@ -1522,9 +1536,9 @@
     const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
     let parts=[];
     cy.edges().forEach(e=>{ const s=e.source().position(), t=e.target().position();
-      parts.push(`<line x1="${s.x}" y1="${s.y}" x2="${t.x}" y2="${t.y}" stroke="#64748b" stroke-width="1.5"/><text x="${(s.x+t.x)/2}" y="${(s.y+t.y)/2}" fill="#94a3b8" font-size="9">${esc(e.data("label")||"")}</text>`); });
+      parts.push(`<line x1="${s.x}" y1="${s.y}" x2="${t.x}" y2="${t.y}" stroke="#64748b" stroke-width="1.5"/><text x="${(s.x+t.x)/2}" y="${(s.y+t.y)/2}" fill="#94a3b8" font-size="${Math.max(7,Math.round(9*textScale))}">${esc(e.data("label")||"")}</text>`); });
     cy.nodes().forEach(n=>{ const p=n.position(), c=n.data("color")||"#94a3b8";
-      parts.push(`<circle cx="${p.x}" cy="${p.y}" r="16" fill="#0a0f1e" stroke="${c}" stroke-width="2"/><text x="${p.x}" y="${p.y+30}" fill="#e2e8f0" font-size="10" text-anchor="middle">${esc(n.data("label")||"")}</text>`); });
+      parts.push(`<circle cx="${p.x}" cy="${p.y}" r="16" fill="#0a0f1e" stroke="${c}" stroke-width="2"/><text x="${p.x}" y="${p.y+30}" fill="#e2e8f0" font-size="${Math.round(11*textScale)}" text-anchor="middle">${esc(n.data("label")||"")}</text>`); });
     const bb=cy.elements().boundingBox(); const w=Math.max(200,bb.w+120), h=Math.max(200,bb.h+140);
     const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="${bb.x1-60} ${bb.y1-70} ${w} ${h}"><rect x="${bb.x1-60}" y="${bb.y1-70}" width="${w}" height="${h}" fill="#0a0f1e"/>${parts.join("")}</svg>`;
     const a=document.createElement("a");
