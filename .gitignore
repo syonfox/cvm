@@ -1,0 +1,10 @@
+.env
+*.db
+*.db-wal
+*.db-shm
+__pycache__/
+*.pyc
+/tmp/
+*.swp
+*.swo
+.wrangler/
