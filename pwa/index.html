@@ -97,13 +97,21 @@
     <input id="fileInput" type="file" accept="application/json" style="display:none" />
     </div>
     <div id="structBar">
-      <div class="struct-steps">
-        <span><b>1</b> Define array</span><i>→</i><span><b>2</b> AI find or create table</span><i>→</i><span><b>3</b> Insert rows</span><i>→</i><span><b>4</b> Sort + render</span>
+      <div class="struct-steps" id="structSteps">
+        <span data-step="1"><b>1</b> Describe + define</span><i>→</i><span data-step="2"><b>2</b> AI find or create table</span><i>→</i><span data-step="3"><b>3</b> Insert rows</span><i>→</i><span data-step="4"><b>4</b> Sort + render</span>
       </div>
+      <div class="struct-guide">
+        <b>Start here — what the AI needs from you first:</b>
+        <span><b>Required:</b> one sentence on what <i>one row</i> is (box below). That's what the AI predicts your fields from.</span>
+        <span><b>Optional:</b> a table name, your own fields, an example object, type + constraints. The more you give, the less the AI guesses.</span>
+        <button id="structExample" class="secondary" type="button">Fill an example for me</button>
+      </div>
+      <textarea id="structDescribe" class="field" rows="2" placeholder="describe your data first — e.g. One row is a threat actor: name, aliases, home country, how active and capable they are, what malware they use."></textarea>
       <div class="struct-row">
-        <input id="structTable" class="field" placeholder="table — e.g. threat_actors" title="table the AI finds or creates (stored def + JSON rows in SpacetimeDB/SQLite/D1)" />
-        <input id="structFields" class="field" placeholder="fields array — e.g. label:text, kind:type, score:number (blank = AI proposes)" title="comma array of name:type; types: text, number, bool, type, date, json" />
+        <input id="structTable" class="field" placeholder="table (optional) — e.g. threat_actors" title="table the AI finds or creates (stored def + JSON rows in SpacetimeDB/SQLite/D1)" />
+        <input id="structFields" class="field" placeholder="fields array (optional) — e.g. label:text, kind:type, score:number" title="comma array of name:type; types: text, number, bool, type, date, json. Blank = AI proposes from your description above" />
       </div>
+      <div id="structFieldPreview" class="meta">no fields yet — the AI will propose them from your description when you press step 2.</div>
       <div class="struct-row">
         <input id="structLabel" class="field" placeholder='object label (optional) — e.g. "Aurora INC"' />
         <input id="structType" class="field" placeholder="object type (optional) — e.g. Organization" />
@@ -949,6 +957,39 @@
   const structTableName = () => ((document.getElementById("structTable") || {}).value || "entities").trim() || "entities";
   const structUser = () => (document.getElementById("username") || {}).value || "anon";
   const structState = (m) => { const e = document.getElementById("structState"); if (e) e.textContent = m; };
+  // guidance state machine: steps light up as the user completes them;
+  // steps 3-4 stay disabled until a table actually exists (no dead clicks).
+  let structStep = 1, structTableReady = "";
+  const paintStructSteps = () => {
+    document.querySelectorAll("#structSteps [data-step]").forEach(el => {
+      const n = +el.dataset.step;
+      el.classList.toggle("done", n < structStep);
+      el.classList.toggle("now", n === structStep);
+    });
+    const ready = !!structTableReady;
+    ["structAdd", "structInsertGraph", "structRender"].forEach(id => {
+      const b = document.getElementById(id); if (b) b.disabled = !ready;
+    });
+    const sel = document.getElementById("structSort");
+    if (sel && structTableReady) { /* options rebuilt by paintStructSort */ }
+    const prev = document.getElementById("structFieldPreview");
+    if (prev) {
+      const f = structFields();
+      prev.innerHTML = f.length
+        ? "your fields: " + f.map(x => `<span class="fld-chip">${x.name}:${x.type}</span>`).join("")
+        : "no fields yet — the AI will propose them from your description when you press step 2.";
+    }
+  };
+  const setStructStep = (n) => { structStep = Math.max(structStep, n); paintStructSteps(); };
+  const paintStructSort = (fields) => {
+    const sel = document.getElementById("structSort"); if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = "";
+    ["id", ...fields.map(f => f.name)].forEach(c => {
+      const o = document.createElement("option"); o.value = c; o.textContent = "sort: " + c; sel.appendChild(o);
+    });
+    if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+  };
   // local fallback registry so the flow still works offline
   const localTables = () => { try { return JSON.parse(localStorage.getItem("cvm_tables") || "{}"); } catch (_) { return {}; } };
   const saveLocalTables = (t) => { try { localStorage.setItem("cvm_tables", JSON.stringify(t)); } catch (_) {} };
@@ -960,14 +1001,25 @@
   window.structMakeTable = async () => {
     const name = structTableName(), fields = structFields();
     const constraints = (document.getElementById("structConstraints") || {}).value || "";
+    const describe = ((document.getElementById("structDescribe") || {}).value || "").trim()
+      || ((document.getElementById("q") || {}).value || "").trim();
+    if (!fields.length && !describe && !constraints) {
+      structState("first: write one sentence in the description box — what is ONE row? The AI predicts your fields from that.");
+      const d = document.getElementById("structDescribe"); if (d) d.focus();
+      try { aiTerm("sys", "structured: need a description (or fields) before the AI can predict a table"); } catch (_) {}
+      return null;
+    }
+    structState("asking the AI to find or create your table…");
     try {
-      const j = await apiTables("/api/tables", { method: "POST", body: JSON.stringify({ table: name, fields, constraints, definition: (document.getElementById("q") || {}).value || "", username: structUser() }) });
-      structState(`table “${j.table.name}” ${j.created ? "created" : "found"} · fields: ${j.table.fields.map(f => f.name + ":" + f.type).join(", ")}`);
+      const j = await apiTables("/api/tables", { method: "POST", body: JSON.stringify({ table: name, fields, constraints, definition: describe, username: structUser() }) });
+      structTableReady = j.table.name; paintStructSort(j.table.fields); setStructStep(3);
+      structState(`table “${j.table.name}” ${j.created ? "created" : "found"} · fields: ${j.table.fields.map(f => f.name + ":" + f.type).join(", ")} — now insert rows (step 3) or press Build.`);
       try { aiTerm("sys", `structured: table ${j.table.name} ${j.created ? "created" : "found"} (${j.table.fields.length} fields)`); } catch (_) {}
       return j.table;
     } catch (e) {
       const t = localTables(); t[name] = t[name] || { fields: fields.length ? fields : [{ name: "label", type: "text" }, { name: "kind", type: "type" }], rows: [] }; saveLocalTables(t);
-      structState(`offline — table “${name}” kept locally (${t[name].fields.length} fields)`);
+      structTableReady = name; paintStructSort(t[name].fields); setStructStep(3);
+      structState(`offline — table “${name}” kept locally (${t[name].fields.length} fields). Rows will sync when the backend is back.`);
       return t[name];
     }
   };
@@ -975,12 +1027,12 @@
     const name = structTableName();
     try {
       const j = await apiTables("/api/tables/rows", { method: "POST", body: JSON.stringify({ table: name, rows, username: structUser() }) });
-      structState(`inserted ${j.inserted.length} row(s) into “${name}”`);
+      setStructStep(4); structState(`inserted ${j.inserted.length} row(s) into “${name}” — now sort + render (step 4), or Build to enrich.`);
       return j;
     } catch (e) {
       const t = localTables(); if (!t[name]) await window.structMakeTable();
       const t2 = localTables(); t2[name].rows.push(...rows); saveLocalTables(t2);
-      structState(`offline — inserted ${rows.length} row(s) locally into “${name}”`);
+      setStructStep(4); structState(`offline — inserted ${rows.length} row(s) locally into “${name}”`);
     }
   }
   window.structRender = async () => {
@@ -998,20 +1050,40 @@
     const tb = document.createElement("tbody");
     rows.forEach(r => { const tr = document.createElement("tr"); cols.forEach(c => { const td = document.createElement("td"); td.textContent = r[c] == null ? "" : String(r[c]); tr.appendChild(td); }); tb.appendChild(tr); });
     tbl.appendChild(tb); box.replaceChildren(tbl);
-    structState(`rendered ${rows.length} row(s) from “${name}”, sorted by ${sort} — explore them in the table or as graph nodes`);
+    setStructStep(5); structState(`rendered ${rows.length} row(s) from “${name}”, sorted by ${sort} — click a graph node to open its page, or export from the toolbar.`);
   };
   const inputSchema = () => {
     if (inputMode !== "structured") return null;
     const t = (document.getElementById("structType") || {}).value || "";
     const c = (document.getElementById("structConstraints") || {}).value || "";
-    return { table: structTableName(), fields: structFields(), types: t.trim(), constraints: c.trim() };
+    return { table: structTableName(), fields: structFields(), types: t.trim(), constraints: c.trim(),
+             definition: ((document.getElementById("structDescribe") || {}).value || "").trim() };
   };
-  paintModeSwitch();
+  paintModeSwitch(); paintStructSteps();
+  document.getElementById("structExample").onclick = () => {
+    document.getElementById("structDescribe").value = "One row is a threat actor: their name, aliases, home country, whether they are still active, how capable they are, and the malware they use.";
+    document.getElementById("structTable").value = "threat_actors";
+    document.getElementById("structFields").value = "";
+    document.getElementById("structLabel").value = "Aurora";
+    document.getElementById("structType").value = "Organization";
+    document.getElementById("structConstraints").value = "only state-linked actors";
+    structStep = 1; paintStructSteps();
+    structState("example filled — press step 2 and watch the AI predict the fields from that one sentence.");
+  };
+  ["structFields", "structDescribe", "structConstraints"].forEach(id => {
+    const el = document.getElementById(id); if (el) el.addEventListener("input", paintStructSteps);
+  });
+  document.getElementById("structTable").addEventListener("input", () => {
+    if (structTableReady && structTableName() !== structTableReady) {
+      structTableReady = ""; structStep = Math.min(structStep, 2); paintStructSteps();
+      structState("table name changed — press step 2 to find or create that table.");
+    }
+  });
   document.getElementById("structMakeTable").onclick = () => window.structMakeTable();
   document.getElementById("structRender").onclick = () => window.structRender();
   document.getElementById("structInsertGraph").onclick = async () => {
     if (activeTab < 0) { structState("build or open a graph first"); return; }
-    await window.structMakeTable();
+    if (!await window.structMakeTable()) return;
     const rows = (tabs[activeTab].data.nodes || []).map(n => ({ label: n.label || n.id, kind: n.kind || "Concept" }));
     await structInsertRows(rows); window.structRender();
   };
@@ -1020,7 +1092,7 @@
     if (!lab) { try { aiTerm("sys", "structured: give the object a label first"); } catch (_) {} return; }
     const kind = (document.getElementById("structType").value || "").trim() || "Concept";
     const constr = (document.getElementById("structConstraints").value || "").trim();
-    await window.structMakeTable();
+    if (!await window.structMakeTable()) return;
     await structInsertRows([{ label: lab, kind, constraints: constr }]);
     if (activeTab < 0) render({ nodes: [], edges: [], adversarial: [] }, "structured");
     pushHist();
@@ -1988,7 +2060,7 @@
       const beforeGo = activeTab >= 0 ? JSON.stringify(tabs[activeTab].data) : null;
       pushHist();
       const tab = render(data, text.slice(0,24));
-      if (data.table) { try { structState(`Build inserted ${(data.nodes || []).length} row(s) into “${data.table.table.name}” — step 4: sorted render below`); window.structRender(); } catch (_) {} }
+      if (data.table) { try { structTableReady = data.table.table.name; setStructStep(4); structState(`Build inserted ${(data.nodes || []).length} row(s) into “${data.table.table.name}” — step 4: sorted render below`); window.structRender(); } catch (_) {} }
       populateRelDropdowns();
       try { chainAdd({kind:"build", prompt:text.slice(0,300), summary:`+${(data.nodes||[]).length}n +${(data.edges||[]).length}e → ${tabs[activeTab].name}`, touch:(data.nodes||[]).map(n=>String(n.id??n.label)).slice(0,25), before:beforeGo}); } catch(_){}
       // new graph id -> commit v1 -> capability url (?g=<uuid>)
@@ -3288,20 +3360,36 @@
 
 <div id="catPal" class="idle" title="your graph familiar — click to see what I'm doing">
   <div id="toyMouse" title="a questionable mouse… click it"><svg viewBox="0 0 80 70" aria-label="questionable mouse">
-    <path d="M14 52 Q 4 58 8 66" stroke="#f9a8d4" stroke-width="3" fill="none" stroke-linecap="round"/>
-    <polygon points="14,52 22,30 52,26 66,44 58,60 28,62" fill="#64748b"/>
-    <polygon points="52,26 66,44 58,60 52,58 58,44" fill="#475569"/>
-    <polygon points="24,32 18,16 34,24" fill="#94a3b8"/>
-    <polygon points="24,29 21,19 30,24" fill="#f9a8d4"/>
-    <polygon points="36,26 34,12 44,22" fill="#94a3b8"/>
-    <polygon points="30,40 38,40 34,46" fill="#e2e8f0"/>
-    <circle cx="31" cy="42" r="2" fill="#0b1120"/>
-    <polygon points="44,40 52,40 48,46" fill="#e2e8f0"/>
-    <circle cx="45" cy="42" r="2" fill="#0b1120"/>
-    <polygon points="12,50 16,48 13,54" fill="#fb7185"/>
-    <line x1="14" y1="52" x2="4" y2="50" stroke="#94a3b8" stroke-width="1.2"/>
-    <line x1="14" y1="55" x2="5" y2="57" stroke="#94a3b8" stroke-width="1.2"/>
-    <text x="62" y="16" font-size="15" font-weight="800" fill="#fbbf24" font-family="Inter,system-ui,sans-serif">?</text>
+    <path d="M16 54 Q 2 56 6 66 Q 9 71 15 67" stroke="#f9a8d4" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <polygon points="16,54 20,58 10,64" fill="#f9a8d4" opacity=".7"/>
+    <!-- body facets -->
+    <polygon points="16,52 24,28 54,24 68,42 60,60 30,62" fill="#6b7280"/>
+    <polygon points="24,28 40,36 30,62 22,46" fill="#9ca3af"/>
+    <polygon points="54,24 68,42 60,60 48,50 44,32" fill="#374151"/>
+    <polygon points="30,62 44,50 60,60" fill="#e5e7eb" opacity=".85"/>
+    <!-- feet -->
+    <polygon points="28,62 38,62 36,66 26,65" fill="#4b5563"/>
+    <polygon points="50,61 60,60 61,65 50,65" fill="#4b5563"/>
+    <!-- ears -->
+    <polygon class="mouseEar" points="26,30 20,13 38,22" fill="#9ca3af"/>
+    <polygon class="mouseEar" points="26,27 23,17 33,22" fill="#f9a8d4"/>
+    <polygon class="mouseEar" points="40,25 40,10 50,21" fill="#6b7280"/>
+    <polygon class="mouseEar" points="41,22 42,14 47,20" fill="#f9a8d4"/>
+    <!-- face: big eyes + highlights, sniffing nose -->
+    <polygon points="29,38 39,38 34,45" fill="#f9fafb"/>
+    <polygon points="45,38 55,38 50,45" fill="#f9fafb"/>
+    <circle cx="33" cy="41" r="2.3" fill="#030712"/><circle cx="49" cy="41" r="2.3" fill="#030712"/>
+    <circle cx="34" cy="40" r=".8" fill="#fff"/><circle cx="50" cy="40" r=".8" fill="#fff"/>
+    <polygon class="mouseNose" points="11,49 17,47 14,55" fill="#fb7185"/>
+    <g stroke="#e5e7eb" stroke-width="1.1" opacity=".85">
+      <line x1="14" y1="50" x2="3" y2="47"/><line x1="14" y1="54" x2="4" y2="57"/>
+      <line x1="58" y1="50" x2="68" y2="47"/><line x1="58" y1="54" x2="67" y2="58"/>
+    </g>
+    <!-- tiny cheese wedge it is guarding -->
+    <polygon points="62,58 74,58 68,50" fill="#fbbf24"/>
+    <polygon points="62,58 68,50 65,58" fill="#f59e0b"/>
+    <circle cx="67" cy="55" r="1.4" fill="#92400e" opacity=".6"/>
+    <text x="64" y="14" font-size="15" font-weight="800" fill="#fbbf24" font-family="Inter,system-ui,sans-serif">?</text>
   </svg></div>
   <div id="catBubble">napping… click me 🐾</div>
   <svg id="slimeThread" viewBox="0 0 26 40" aria-hidden="true">
@@ -3333,24 +3421,34 @@
       <polygon points="36,84 46,80 54,96 40,104" fill="#9ca3af"/>
       <polygon points="86,84 88,118 72,104 66,92" fill="#111827"/>
       <polygon points="86,84 76,88 66,92 78,98" fill="#374151"/>
-      <!-- titanium chest plate -->
-      <polygon points="50,94 70,94 74,118 46,118" fill="url(#catTitanium)" opacity=".95"/>
-      <polygon points="50,94 60,100 46,118" fill="#6b7280"/>
-      <polygon points="70,94 60,100 74,118" fill="#4b5563"/>
-      <polygon points="55,101 65,101 60,111" fill="#e5e7eb"/>
+      <!-- cosy knit sweater: ribbed collar, titanium stripes, stitch lines -->
+      <g id="catSweater">
+        <polygon points="47,88 73,88 75,118 45,118" fill="#1f2937"/>
+        <polygon points="47,88 60,92 45,118" fill="#374151"/>
+        <polygon points="73,88 60,92 75,118" fill="#111827"/>
+        <polygon points="47,88 73,88 71,94 49,94" fill="url(#catTitanium)"/>
+        <polygon points="46,102 74,102 74,106 46,106" fill="#9ca3af" opacity=".8"/>
+        <polygon points="45,112 75,112 75,115 45,115" fill="#6b7280" opacity=".8"/>
+        <path d="M50 96 l0 20 M56 97 l0 20 M64 97 l0 20 M70 96 l0 20" stroke="rgba(229,231,235,.28)" stroke-width="1" stroke-dasharray="2 3"/>
+        <polygon points="56,107 64,107 60,113" fill="#e5e7eb"/>
+      </g>
       <polygon class="paw pawL" points="38,118 44,106 52,118" fill="#d1d5db"/>
       <polygon class="paw pawR" points="68,118 76,106 82,118" fill="#9ca3af"/>
       <path d="M42 114 l2 3 M48 114 l0 3 M72 114 l0 3 M78 114 l-2 3" stroke="#111827" stroke-width="1.1"/>
     </g>
     <g id="catHead">
-      <polygon class="ear earL" points="28,36 18,4 50,22" fill="#4b5563"/>
-      <polygon class="ear earR" points="92,36 102,4 70,22" fill="#374151"/>
-      <polygon points="18,4 30,10 50,22" fill="url(#catTitanium)"/>
-      <polygon points="102,4 90,10 70,22" fill="url(#catTitanium)"/>
-      <polygon points="28,32 24,15 38,21" fill="#6b7280"/>
-      <polygon points="92,32 96,15 82,21" fill="#4b5563"/>
-      <polygon points="30,29 25,13 42,23" fill="#f9a8d4"/>
-      <polygon points="90,29 95,13 78,23" fill="#f9a8d4"/>
+      <!-- smaller, sleeker ears (tucked back) + tiny stylish hair tuft -->
+      <polygon class="ear earL" points="30,35 24,15 48,24" fill="#4b5563"/>
+      <polygon class="ear earR" points="90,35 96,15 72,24" fill="#374151"/>
+      <polygon points="24,15 33,18 48,24" fill="url(#catTitanium)"/>
+      <polygon points="96,15 87,18 72,24" fill="url(#catTitanium)"/>
+      <polygon points="31,30 28,20 40,24" fill="#f9a8d4"/>
+      <polygon points="89,30 92,20 80,24" fill="#f9a8d4"/>
+      <g class="catHair">
+        <polygon points="52,14 57,4 61,13" fill="#111827"/>
+        <polygon points="59,13 65,5 66,14" fill="#374151"/>
+        <polygon points="55,13 60,8 58,15" fill="#9ca3af"/>
+      </g>
       <!-- head: black-grey facets, finer cuts for detail -->
       <polygon points="60,12 26,34 30,74 60,90" fill="#4b5563"/>
       <polygon points="60,12 94,34 90,74 60,90" fill="#1f2937"/>

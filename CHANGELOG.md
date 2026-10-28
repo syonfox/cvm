@@ -49,3 +49,14 @@ reverted on its own (`git revert <that commit>`) without touching this work.
   Tables are stored definitions + JSON rows: SQLite (backend), D1 (worker),
   `table_def`/`table_row` in SpacetimeDB — real SpacetimeDB schemas are
   compile-time, so user tables cannot be literal new SpacetimeDB tables.
+
+## Cat styling + structured guidance (2026-10-28)
+
+- Cat: smaller tucked ears, tiny swaying hair tuft, knit sweater (ribbed
+  collar, titanium stripes, stitch lines) instead of the chest plate.
+- Mouse: faceted body/belly/feet, twitching ears, sniffing nose, cheese wedge.
+- Structured panel now guides: "what the AI needs first" box, required
+  one-row description (feeds AI field prediction), Fill-an-example button,
+  live field chips, step indicators that light up, steps 3-4 disabled
+  until a table exists, sort dropdown rebuilt from real table fields,
+  renaming the table re-arms step 2. `/build` receives the description too.

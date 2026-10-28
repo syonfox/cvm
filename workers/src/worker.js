@@ -185,6 +185,7 @@ async function buildNetwork(env, text, user, schema) {
     tpl += "\n\n[STRUCTURED MODE — extract ONLY entities whose kind is one of: "
       + (schema.types || "(any, but keep kinds tight)")
       + ". Additional constraints: " + (schema.constraints || "none")
+      + (schema.definition ? ". Data description: " + schema.definition : "")
       + ". Skip anything that does not fit. Put provided constraints in attrs.]";
   }
   const ai = await aiChat(env, tpl.replace("{text}", text));

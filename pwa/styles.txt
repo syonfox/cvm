@@ -277,6 +277,16 @@
   border:1px solid rgba(156,163,175,.35);border-radius:var(--radius-m);padding:10px}
 #structBar.show{display:flex}
 .struct-steps{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:11px;color:var(--dim)}
+.struct-steps span.done{color:#e5e7eb}
+.struct-steps span.done b{background:linear-gradient(180deg,#6ee7b7,#059669);box-shadow:0 2px 0 #064e3b}
+.struct-steps span.now{color:#fff;font-weight:700}
+.struct-steps span.now b{background:linear-gradient(180deg,#fbbf24,#d97706);box-shadow:0 2px 0 #451a03;transform:scale(1.15)}
+.struct-guide{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--text);
+  background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.35);border-radius:8px;padding:8px 10px}
+.struct-guide .secondary{align-self:flex-start;padding:4px 10px;font-size:11px}
+#structFieldPreview .fld-chip{display:inline-block;background:rgba(156,163,175,.18);border:1px solid rgba(156,163,175,.45);
+  border-radius:999px;padding:1px 8px;margin:0 3px 3px 0;font-size:10.5px;color:#e5e7eb}
+button.secondary:disabled{opacity:.4;cursor:not-allowed;transform:none}
 .struct-steps b{display:inline-flex;width:17px;height:17px;border-radius:50%;align-items:center;justify-content:center;
   background:linear-gradient(180deg,#9ca3af,#4b5563);color:#fff;font-size:10px;box-shadow:0 2px 0 #111827}
 .struct-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
@@ -451,6 +461,12 @@ button.secondary:disabled{opacity:.45;cursor:not-allowed;transform:none}
 #toyMouse svg{width:64px;height:56px;overflow:visible;filter:drop-shadow(0 6px 14px rgba(0,0,0,.5))}
 @keyframes mouseIn{0%{transform:translateX(70px) scale(.3);opacity:0}60%{transform:translateX(-8px) scale(1.08);opacity:1}100%{transform:none;opacity:1}}
 @keyframes mouseTremble{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
+#toyMouse .mouseEar{transform-box:fill-box;transform-origin:50% 90%;animation:mouseEarTwitch 3.8s ease-in-out infinite}
+#toyMouse .mouseNose{transform-box:fill-box;transform-origin:center;animation:mouseSniff .9s ease-in-out infinite}
+@keyframes mouseEarTwitch{0%,88%,100%{transform:rotate(0)}92%{transform:rotate(-8deg)}96%{transform:rotate(5deg)}}
+@keyframes mouseSniff{0%,100%{transform:scale(1)}50%{transform:scale(1.25)}}
+#catPal .catHair{transform-box:fill-box;transform-origin:50% 100%;animation:catHairSway 3.2s ease-in-out infinite}
+@keyframes catHairSway{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2.5deg)}}
 
 /* ---- slime thread: 4-node low-poly drool, bubble corner -> cat mouth ----
    GPU-cheap (one skewed quad pair, compositor transform only). Shows while

@@ -631,6 +631,7 @@ def build_network(text, user, schema=None):
         prompt+=("\n\n[STRUCTURED MODE — extract ONLY entities whose kind is one of: "
                 + (schema.get("types") or "(any, but keep kinds tight)")
                 + ". Additional constraints: " + (schema.get("constraints") or "none")
+                + (". Data description: " + schema["definition"] if schema.get("definition") else "")
                 + ". Skip anything that does not fit. Put provided constraints in attrs.]")
     ai=ai_chat(prompt)
     nodes=[]; edges=[]
