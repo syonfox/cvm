@@ -17,6 +17,9 @@ What changes vs the VPS build:
 ```bash
 npm i -g wrangler
 cd workers
+# local edge runtime (same code as prod, D1 local, secrets from .dev.vars):
+#   bash start.sh edge        # generates workers/.dev.vars from .env, runs wrangler dev --ip 0.0.0.0
+# or directly: wrangler dev --ip 0.0.0.0   # [dev] ip/port already set in wrangler.toml
 wrangler login                                   # opens dash.cloudflare.com — the dashboard
 wrangler d1 create cvm                             # paste the database_id into wrangler.toml
 wrangler d1 execute cvm --remote --file schema.sql

@@ -10,3 +10,6 @@ __pycache__/
 .wrangler/
 __pycache__/
 __pycache__/
+# wrangler local dev secrets (generated from .env, never commit)
+.dev.vars
+workers/.dev.vars
