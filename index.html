@@ -69,18 +69,28 @@
   #layerFoot { margin-top:10px; padding-top:10px; border-top:1px solid var(--border); font-size:11px; color:var(--dim); display:flex; flex-direction:column; gap:6px; }
   #layerFoot .row { display:flex; gap:6px; }
   #layerFoot button { flex:1; background:rgba(255,255,255,.06); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:5px; font-size:11px; cursor:pointer; }
-  #layers { position:relative; padding-bottom:64px; }
-  #radialDock { position:absolute; left:0; right:0; bottom:10px; display:flex; justify-content:center; pointer-events:none; z-index:30; }
-  #radialFab { pointer-events:auto; width:42px; height:42px; border-radius:50%; border:1px solid rgba(56,189,248,.5); background:linear-gradient(135deg,#0284c7,#7c3aed); color:#fff; font-size:17px; cursor:pointer; box-shadow:0 6px 22px rgba(0,0,0,.55); transition:transform .18s; }
-  #radialFab:hover { transform:scale(1.08); }
-  #radialFab.open { transform:rotate(45deg); }
-  .rad-btn { position:absolute; bottom:0; left:50%; width:38px; height:38px; margin-left:-19px; border-radius:50%; border:1px solid var(--border); background:rgba(8,12,24,.96); color:var(--text); font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 6px 20px rgba(0,0,0,.55); opacity:0; pointer-events:none; transition:transform .22s cubic-bezier(.22,1.35,.36,1), opacity .18s; }
-  #radialDock.open .rad-btn { opacity:1; pointer-events:auto; transform:var(--pos); }
-  #radialDock.open .rad-btn:hover { border-color:var(--cyan); color:var(--cyan); transform:var(--pos) scale(1.1) !important; }
-  #radialSheet { position:absolute; bottom:56px; left:10px; right:10px; display:none; background:rgba(8,12,24,.97); border:1px solid var(--border); border-radius:12px; padding:10px; box-shadow:0 16px 44px rgba(0,0,0,.6); pointer-events:auto; }
+  #layers { position:relative; padding-bottom:12px; }
+  /* radial lives INLINE at the bottom of the rail: sheet expands in-flow like settings, fan overlays above it */
+  #radialDock { position:relative; margin-top:10px; padding-top:6px; border-top:1px solid var(--border); display:flex; flex-direction:column; align-items:center; gap:8px; z-index:30; }
+  #radialSheet { display:none; width:100%; background:rgba(0,0,0,.35); border:1px solid var(--border); border-radius:12px; padding:10px; order:-1; }
   #radialSheet.open { display:block; animation:popIn .18s cubic-bezier(.22,1.35,.36,1); }
-  #radialSheet input, #radialSheet select { width:100%; background:rgba(0,0,0,.4); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:7px; font-size:12px; margin-bottom:6px; }
-  #radialSheet button.go { width:100%; background:linear-gradient(135deg,#0284c7,#7c3aed); border:none; color:#fff; border-radius:8px; padding:8px; font-weight:700; cursor:pointer; }
+  #radialSheet input, #radialSheet select { width:100%; box-sizing:border-box; background:rgba(0,0,0,.4); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:9px; font-size:12px; margin-bottom:6px; }
+  #radialSheet button.go { width:100%; background:linear-gradient(180deg,#38bdf8,#0284c7); border:none; color:#fff; border-radius:10px; padding:11px; font-weight:800; font-size:13px; cursor:pointer; box-shadow:0 4px 0 #0c4a6e, 0 8px 18px rgba(0,0,0,.5); }
+  #radialSheet button.go:active { transform:translateY(3px); box-shadow:0 1px 0 #0c4a6e; }
+  /* arcade meat: chunky 3D buttons with real press travel */
+  #radialFab { width:52px; height:52px; border-radius:16px; border:2px solid rgba(56,189,248,.6); background:linear-gradient(180deg,#38bdf8,#0284c7 60%,#0c4a6e); color:#fff; font-size:20px; cursor:pointer; box-shadow:0 5px 0 #082f49, 0 10px 26px rgba(0,0,0,.55), inset 0 2px 0 rgba(255,255,255,.45); transition:transform .08s, box-shadow .08s; }
+  #radialFab:hover { filter:brightness(1.12); }
+  #radialFab:active, #radialFab.open { transform:translateY(4px); box-shadow:0 1px 0 #082f49, 0 4px 12px rgba(0,0,0,.5), inset 0 2px 0 rgba(255,255,255,.35); }
+  #radialFan { position:absolute; bottom:62px; left:0; right:0; height:0; pointer-events:none; z-index:31; }
+  .rad-btn { position:absolute; bottom:0; left:50%; width:52px; height:52px; margin-left:-26px; border-radius:16px; border:2px solid rgba(255,255,255,.16); background:linear-gradient(180deg,#334155,#0f172a 65%,#020617); color:var(--text); font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 5px 0 #000, 0 10px 22px rgba(0,0,0,.6), inset 0 2px 0 rgba(255,255,255,.25); opacity:0; pointer-events:none; transition:transform .22s cubic-bezier(.22,1.35,.36,1), opacity .18s, filter .12s; }
+  #radialDock.open .rad-btn { opacity:1; pointer-events:auto; transform:var(--pos); }
+  #radialDock.open .rad-btn:hover { border-color:var(--cyan); color:var(--cyan); filter:brightness(1.25); transform:var(--pos) scale(1.08) !important; }
+  .rad-btn:active { transform:var(--pos) translateY(4px) !important; box-shadow:0 1px 0 #000, inset 0 2px 0 rgba(255,255,255,.2); }
+  .rad-btn.rad-settings { border-color:rgba(167,139,250,.55); }
+  /* right-click menu: chunky arcade rows to match */
+  #ctxMenu button.act { padding:11px 10px; font-size:13px; font-weight:700; border:2px solid transparent; border-radius:10px; }
+  #ctxMenu button.act:hover { background:rgba(56,189,248,.12); border-color:rgba(56,189,248,.4); }
+  #ctxMenu button.act:active { transform:translateY(2px); }
   @media (max-width: 1100px){ .app{grid-template-columns:1fr;} #layers{display:none;} #layers.open{display:flex;} #layerToggle{display:block;} .grid{grid-template-columns:1fr;} }
   .panel { background:var(--panel); border:1px solid var(--border); border-radius:14px; backdrop-filter:blur(20px); overflow:hidden; position:relative; }
   #graphHint{position:absolute;left:10px;top:10px;z-index:6;max-width:280px;background:rgba(5,8,16,.85);border:1px solid var(--border);border-radius:10px;padding:7px 10px;font-size:11.5px;color:var(--dim);line-height:1.5;backdrop-filter:blur(8px)}
@@ -250,8 +260,9 @@
       <div id="graphHist" style="display:none;flex-direction:column;gap:4px;max-height:220px;overflow:auto"></div>
     </div>
     <div id="radialDock">
-      <button id="radialFab" title="quick actions"><i class="fa-solid fa-plus"></i></button>
       <div id="radialSheet"></div>
+      <div id="radialFan"></div>
+      <button id="radialFab" title="quick actions"><i class="fa-solid fa-plus"></i></button>
     </div>
   </aside>
   <div class="grid">
@@ -1186,6 +1197,7 @@
   const setRadialSlots = (v) => { try { localStorage.setItem("osint_radial", JSON.stringify(v)); } catch (_) {} };
   const dock = document.getElementById("radialDock"),
         fab = document.getElementById("radialFab"),
+        fan = document.getElementById("radialFan"),
         sheet = document.getElementById("radialSheet");
   const closeRadial = () => { dock.classList.remove("open"); fab.classList.remove("open"); sheet.classList.remove("open"); };
   const openSheet = (html) => { sheet.innerHTML = html; sheet.classList.add("open"); };
@@ -1237,7 +1249,7 @@
     if (key === "settle") return click("settleBtn");
   };
   const buildRadial = () => {
-    dock.querySelectorAll(".rad-btn").forEach(b => b.remove());
+    fan.querySelectorAll(".rad-btn").forEach(b => b.remove());
     // fan geometry: 4 buttons arcing upward inside the ~250px rail (no overflow, no tree shift)
     const keys = ["settings", ...radialSlots()];
     const spread = [[-84, -64], [-30, -92], [30, -92], [84, -64]]; // x,y px per button
@@ -1248,7 +1260,7 @@
       b.innerHTML = `<i class="fa-solid ${meta.icon}"></i>`;
       b.style.setProperty("--pos", `translate(${spread[i][0]}px,${spread[i][1]}px)`);
       b.onclick = (e) => { e.stopPropagation(); runRadial(k); };
-      dock.appendChild(b);
+      fan.appendChild(b);
     });
   };
   fab.onclick = (e) => {
@@ -2505,6 +2517,7 @@
   // node right-click menu lives INSIDE the graph panel (absolute, clamped)
   const ctxMenu=document.getElementById("ctxMenu");
   const panel=document.querySelector(".panel");
+  panel.addEventListener("contextmenu",(e)=>{ e.preventDefault(); }); // ours replaces the native one
   // path-mode: click A then click B (no menu needed); Esc cancels; click inside panel closes menu
   cy.on("tap","node",(e)=>{
     if (!pathMode) return;
@@ -2642,17 +2655,66 @@
   };
   // keep selection bar in sync with every selection change
   cy.on("select unselect", () => { try { paintSelBar(); } catch (_) {} });
-  // Right-click is click-through: selects + opens the living page (no popup).
-  // All node actions live in the slim selection bar + the living page.
+  // Right-click menu: clamped inside the graph panel, acts on click position.
+  const showCtx = (x, y, rows) => {
+    const m = document.getElementById("ctxMenu");
+    m.innerHTML = rows.join("");
+    m.style.display = "block";
+    const pr = panel.getBoundingClientRect();
+    m.style.left = Math.min(Math.max(4, x), Math.max(4, pr.width - 244)) + "px";
+    m.style.top = Math.min(Math.max(4, y), Math.max(4, pr.height - m.offsetHeight - 8)) + "px";
+    m.querySelectorAll("[data-cx]").forEach(btn => { btn.onclick = (ev) => { ev.stopPropagation(); m.style.display = "none"; selAct(btn.dataset.cx); }; });
+    m.querySelectorAll("[data-cxpage]").forEach(btn => { btn.onclick = (ev) => { ev.stopPropagation(); m.style.display = "none"; try { openNodePage(btn.dataset.cxpage, "page"); } catch (_) {} }; });
+    m.querySelectorAll("[data-cxshot]").forEach(btn => { btn.onclick = (ev) => { ev.stopPropagation(); m.style.display = "none"; runHot(btn.dataset.cxshot); }; });
+  };
+  const menuPos = (e) => {
+    const pr = panel.getBoundingClientRect();
+    const o = e.originalEvent;
+    if (o && o.clientX != null) return { x: o.clientX - pr.left, y: o.clientY - pr.top };
+    const rp = e.renderedPosition || e.position || { x: pr.width / 2, y: 80 };
+    const z = cy.zoom(), p = cy.pan();
+    return { x: rp.x * z + p.x, y: rp.y * z + p.y };
+  };
   cy.on("cxttap", "node", (e) => {
     try { e.originalEvent && e.originalEvent.preventDefault && e.originalEvent.preventDefault(); } catch (_) {}
     const n = e.target;
     try { if (!n.selected()) n.select(); paintSelection(); paintSelBar(); } catch (_) {}
-    try { if (typeof openNodePage === "function") openNodePage(n.id(), "page"); } catch (_) {}
+    const nm = escH(String(n.data("label") || n.id())).slice(0, 40);
+    const p = menuPos(e);
+    showCtx(p.x, p.y, [
+      `<div class="hd"><i class="fa-solid fa-circle-nodes"></i> ${nm}</div>`,
+      `<button class="act" data-cxpage="${n.id()}"><i class="fa-solid fa-file-lines"></i> Open page</button>`,
+      `<button class="act" data-cxshot="${escH(localStorage.getItem("osint_0shot_prompt") || SHOT_DEFAULT)}"><i class="fa-solid fa-bolt"></i> Ask 0shot</button>`,
+      `<div class="sec">edit</div>`,
+      `<button class="act" data-cx="rename"><i class="fa-solid fa-pen"></i> Rename</button>`,
+      `<button class="act" data-cx="dup"><i class="fa-solid fa-copy"></i> Duplicate</button>`,
+      `<button class="act" data-cx="del"><i class="fa-solid fa-trash"></i> Delete</button>`,
+    ]);
   });
   cy.on("cxttap", "edge", (e) => {
     try { e.originalEvent && e.originalEvent.preventDefault && e.originalEvent.preventDefault(); } catch (_) {}
     try { if (!e.target.selected()) e.target.select(); paintSelection(); paintSelBar(); } catch (_) {}
+    const p = menuPos(e);
+    const rel = escH(String(e.target.data("rel") || "related")).slice(0, 30);
+    showCtx(p.x, p.y, [
+      `<div class="hd"><i class="fa-solid fa-arrow-right"></i> ${rel}</div>`,
+      `<button class="act" data-cx="redge"><i class="fa-solid fa-pen"></i> Rename relation</button>`,
+      `<button class="act" data-cx="dedge"><i class="fa-solid fa-trash"></i> Delete edge</button>`,
+    ]);
+  });
+  cy.on("cxttap", (e) => {
+    if (e.target !== cy) return;
+    try { e.originalEvent && e.originalEvent.preventDefault && e.originalEvent.preventDefault(); } catch (_) {}
+    const p = menuPos(e);
+    const m = document.getElementById("ctxMenu");
+    m.innerHTML = `<button class="act" data-fit="1"><i class="fa-solid fa-expand"></i> Fit to view</button>`
+      + `<button class="act" data-settle="1"><i class="fa-solid fa-atom"></i> Settle layout</button>`;
+    m.style.display = "block";
+    const pr = panel.getBoundingClientRect();
+    m.style.left = Math.min(Math.max(4, p.x), Math.max(4, pr.width - 244)) + "px";
+    m.style.top = Math.min(Math.max(4, p.y), Math.max(4, pr.height - m.offsetHeight - 8)) + "px";
+    m.querySelector("[data-fit]").onclick = (ev) => { ev.stopPropagation(); m.style.display = "none"; try { cy.fit(null, 40); } catch (_) {} };
+    m.querySelector("[data-settle]").onclick = (ev) => { ev.stopPropagation(); m.style.display = "none"; const b = document.getElementById("settleBtn"); if (b) b.click(); };
   });
   // Edge double-click renames inline (no popup); edge delete lives in selection bar / Delete key.
   cy.on("dblclick", "edge", (e) => {
