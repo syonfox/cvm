@@ -84,6 +84,12 @@ def init_db():
     # generic feature-request / vote forum: every unimplemented action funnels here
     c.execute("""CREATE TABLE IF NOT EXISTS feature_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, detail TEXT DEFAULT '', contact TEXT DEFAULT '', votes INTEGER NOT NULL DEFAULT 1, status TEXT DEFAULT 'open', created REAL)""")
     c.execute("""CREATE TABLE IF NOT EXISTS feature_votes (req_id INTEGER NOT NULL, voter TEXT NOT NULL, created REAL, PRIMARY KEY (req_id, voter))""")
+    # structured ingest: user-defined tables. SpacetimeDB schemas are compile-time,
+    # so a user table = a stored definition (user_tables) + JSON rows (table_rows);
+    # mirrored to SpacetimeDB table_def/table_row when configured.
+    c.execute("""CREATE TABLE IF NOT EXISTS user_tables (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, fields TEXT NOT NULL DEFAULT '[]', constraints_text TEXT DEFAULT '', user TEXT, created REAL, UNIQUE(name, user))""")
+    c.execute("""CREATE TABLE IF NOT EXISTS table_rows (id INTEGER PRIMARY KEY AUTOINCREMENT, table_id INTEGER NOT NULL, row TEXT NOT NULL DEFAULT '{}', user TEXT, created REAL)""")
+    c.execute("""CREATE INDEX IF NOT EXISTS idx_table_rows ON table_rows(table_id, id)""")
     # seed prompts
     seeds = {
      "entity_extract": "You are a CVM (Cache Variable Memory) graph builder. Given free-text input, extract a knowledge graph.\nReturn ONLY valid JSON with keys: nodes (list of {id,label,kind,attrs}) and edges (list of {source,target,rel,score}).\nkinds: Person, Organization, Domain, IP, Location, Event, Concept, Asset.\nInput: {text}",
@@ -273,6 +279,89 @@ def spacetime_publish(uuid, doc):
         return {"ok": True, "via": "spacetime", "host": host, "upstream": bool(r)}
     except Exception as e:
         return {"ok": False, "via": "spacetime", "error": str(e)[:200]}
+
+# ---- structured ingest: define array -> find-or-create table -> insert rows -> sort/render ----
+FIELD_TYPES = {"text", "number", "bool", "type", "date", "json"}
+def parse_fields(raw):
+    """Accept [{name,type}] or 'label:text, score:number' or ['label',...]."""
+    out = []
+    if isinstance(raw, str):
+        raw = [p.strip() for p in raw.replace("\n", ",").split(",") if p.strip()]
+    for f in raw or []:
+        if isinstance(f, str):
+            name, _, typ = f.partition(":")
+            f = {"name": name.strip(), "type": (typ.strip() or "text")}
+        name = "".join(ch for ch in str(f.get("name", "")).strip() if ch.isalnum() or ch in "_- ").replace(" ", "_")
+        typ = str(f.get("type", "text")).strip().lower()
+        if name:
+            out.append({"name": name[:60], "type": typ if typ in FIELD_TYPES else "text"})
+    return out[:24] or [{"name": "label", "type": "text"}, {"name": "kind", "type": "type"}]
+
+def ai_propose_fields(definition, table_name):
+    ai = ai_chat("Propose a table schema for ingesting this data. Reply ONLY JSON array of "
+                 '{"name":..,"type":"text|number|bool|type|date|json"}. '
+                 f"Table: {table_name}\nDefinition: {str(definition)[:800]}")
+    try:
+        s = (ai or "").strip().strip("`")
+        if s.startswith("json"): s = s[4:]
+        return parse_fields(json.loads(s))
+    except Exception:
+        return parse_fields(definition)
+
+def find_or_create_table(user, name, fields, constraints_text="", definition=""):
+    name = "".join(ch for ch in (name or "").strip().lower() if ch.isalnum() or ch in "_- ").replace(" ", "_")[:60] or "entities"
+    c = sqlite3.connect(DB)
+    row = c.execute("SELECT id, fields FROM user_tables WHERE name=? AND user IS ?", (name, user)).fetchone()
+    created = False
+    if row and not fields:
+        fields = json.loads(row[1])  # find, don't redefine
+    elif not fields:
+        fields = ai_propose_fields(definition or constraints_text, name)
+    else:
+        fields = parse_fields(fields)
+    if row:
+        tid = row[0]
+        if fields:
+            c.execute("UPDATE user_tables SET fields=?, constraints_text=? WHERE id=?", (json.dumps(fields), constraints_text or "", tid))
+    else:
+        tid = c.execute("INSERT INTO user_tables(name,fields,constraints_text,user,created) VALUES(?,?,?,?,?)",
+                        (name, json.dumps(fields), constraints_text or "", user, time.time())).lastrowid
+        created = True
+    c.commit(); c.close()
+    if os.environ.get("SPACETIME_HOST"):
+        try: _st_call("define_table", {"name": name, "fields": json.dumps(fields), "user": user or ""})
+        except Exception: pass
+    return {"ok": True, "table": {"id": tid, "name": name, "fields": fields, "constraints": constraints_text or ""}, "created": created}
+
+def insert_table_row(user, table_name, row):
+    # never AI-propose or overwrite fields on insert — reuse the def from step 2
+    c0 = sqlite3.connect(DB)
+    exists = c0.execute("SELECT id FROM user_tables WHERE name=? AND user IS ?",
+                        ("".join(ch for ch in (table_name or "").strip().lower() if ch.isalnum() or ch in "_- ").replace(" ", "_")[:60] or "entities", user)).fetchone()
+    c0.close()
+    t = {"table": {"id": exists[0], "name": table_name}} if exists else \
+        find_or_create_table(user, table_name, [{"name": "label", "type": "text"}, {"name": "kind", "type": "type"}])
+    row = {k: v for k, v in (row or {}).items() if not str(k).startswith("_")}
+    c = sqlite3.connect(DB)
+    rid = c.execute("INSERT INTO table_rows(table_id,row,user,created) VALUES(?,?,?,?)",
+                    (t["table"]["id"], json.dumps(row), user, time.time())).lastrowid
+    c.commit(); c.close()
+    if os.environ.get("SPACETIME_HOST"):
+        try: _st_call("insert_table_row", {"tableName": t["table"]["name"], "row": json.dumps(row), "user": user or ""})
+        except Exception: pass
+    return {"ok": True, "id": rid, "table": t["table"]["name"], "row": row}
+
+def list_table_rows(user, table_name, sort="label"):
+    c = sqlite3.connect(DB)
+    t = c.execute("SELECT id, fields FROM user_tables WHERE name=? AND user IS ?", (table_name, user)).fetchone()
+    if not t:
+        c.close(); return {"ok": False, "error": "table not found", "rows": []}
+    rows = [{"id": r[0], **json.loads(r[1])} for r in
+            c.execute("SELECT id, row FROM table_rows WHERE table_id=? ORDER BY id", (t[0],)).fetchall()]
+    c.close()
+    key = sort if sort in {f["name"] for f in json.loads(t[1])} | {"id"} else "id"
+    rows.sort(key=lambda r: (r.get(key) is None, str(r.get(key, "")).lower()))
+    return {"ok": True, "table": table_name, "fields": json.loads(t[1]), "sort": key, "rows": rows}
 
 # ---- node pages + chat: sqlite now, SpacetimeDB dual-write (best-effort) ----
 def _st_call(reducer, args):
@@ -574,6 +663,14 @@ def build_network(text, user, schema=None):
         for h in hits:
             if h["name"]!=n["label"]:
                 edges.append({"source":n["id"],"target":h["name"],"rel":"similar-to (db)","score":round(similarity(n["label"],h["name"]),2)})
+    # structured ingest step 3: AI-found/created table gets one row per entity
+    table_info=None
+    if schema and schema.get("table"):
+        table_info=find_or_create_table(user, schema["table"], schema.get("fields"), schema.get("constraints",""))
+        for n in nodes:
+            row={"label":n.get("label",""),"kind":n.get("kind","")}
+            row.update({k:v for k,v in (n.get("attrs") or {}).items() if isinstance(v,(str,int,float,bool))})
+            insert_table_row(user, schema["table"], row)
     # persist
     c=sqlite3.connect(DB)
     for n in nodes:
@@ -590,7 +687,7 @@ def build_network(text, user, schema=None):
     c=sqlite3.connect(DB)
     c.execute("INSERT INTO graphs(user,text,nodes,edges,flags,created) VALUES(?,?,?,?,?,?)",(user,text,json.dumps(nodes),json.dumps(edges),json.dumps(flags),time.time()))
     c.commit(); c.close()
-    return {"nodes":nodes,"edges":edges,"adversarial":flags,"ai_raw":ai,"user":user}
+    return {"nodes":nodes,"edges":edges,"adversarial":flags,"ai_raw":ai,"user":user,"table":table_info}
 
 def run_exec(lang, code):
     # Exec finalized on a Debian sandbox: EXEC_MODE=sandbox runs every snippet in a
@@ -815,6 +912,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 with urllib.request.urlopen("https://api.ipify.org",timeout=5) as r: pub=r.read().decode().strip()
             except: pub=None
             self._json({"lan_ip":lan,"public_ip":pub,"port":int(os.environ.get("PORT",3334)),"exec_mode":os.environ.get("EXEC_MODE","local")})
+        elif self.path.startswith("/api/tables"):
+            q=parse_qs(urlparse(self.path).query)
+            user=q.get("user",[""])[0] or self.headers.get("X-Username") or ""
+            self._json(list_table_rows(user, q.get("table",[""])[0], q.get("sort",["id"])[0]))
         elif self.path.startswith("/search"):
             q=parse_qs(urlparse(self.path).query).get("q",[""])[0]
             self._json({"results":db_search(q)})
@@ -1090,6 +1191,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(sync_publish(body.get("uuid",""), body.get("doc")))
         elif self.path=="/api/spacetime/publish":
             self._json(spacetime_publish(body.get("uuid",""), body.get("doc")))
+        elif self.path=="/api/tables":
+            user=get_user(body, self.headers, self._client_ip())
+            self._json(find_or_create_table(user, body.get("table",""), body.get("fields"),
+                                            body.get("constraints",""), body.get("definition","")))
+        elif self.path=="/api/tables/rows":
+            user=get_user(body, self.headers, self._client_ip())
+            rows=body.get("rows") or [body.get("row") or {}]
+            self._json({"ok":True,"inserted":[insert_table_row(user, body.get("table",""), r) for r in rows]})
         elif self.path=="/api/node-page":
             user=get_user(body, self.headers, self._client_ip())
             self._json(node_page_save(body.get("node",""), user, body.get("title",""), body.get("kind",""), body.get("body",""), label=body.get("label",""), shared=body.get("shared", True) is not False, message=body.get("message","")))

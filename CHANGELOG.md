@@ -36,3 +36,16 @@ reverted on its own (`git revert <that commit>`) without touching this work.
   `#nodePageTabs` being forced circular, defined `.arcade-mini`.
 - Intro tour: tooltip + backdrop darkened to smoky silver/bronze.
 
+
+## Structured ingest + cat retune (2026-10-28)
+
+- Cat: no emerald on the head (titanium stud, pink friendly mouth), finer
+  facet cuts + larger display size, black/grey palette, bronze → titanium
+  everywhere (cat + intro tour).
+- Modes are explicit on the main toolbar: **Unstructured** / **Structured**.
+- Structured flow: 1 define fields array → 2 AI find-or-create table
+  (`POST /api/tables`) → 3 insert rows (`/api/tables/rows`, single object,
+  whole graph, or auto on Build) → 4 sort + render (`GET /api/tables`).
+  Tables are stored definitions + JSON rows: SQLite (backend), D1 (worker),
+  `table_def`/`table_row` in SpacetimeDB — real SpacetimeDB schemas are
+  compile-time, so user tables cannot be literal new SpacetimeDB tables.

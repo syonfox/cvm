@@ -92,7 +92,33 @@ const nodeChat = table(
   }
 );
 
-const spacetimedb = schema({ entity, relation, snapshotChunk, kvCache, nodePage, nodeChat });
+/** User-defined structured table: definition only (SpacetimeDB schemas are
+ *  compile-time, so rows live in table_row as JSON against this def). */
+const tableDef = table(
+  { name: 'table_def', public: true },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    name: t.string().index('btree'),
+    fields: t.string(),
+    user: t.string().index('btree'),
+  }
+);
+
+const tableRow = table(
+  {
+    name: 'table_row',
+    public: true,
+    indexes: [{ accessor: 'by_table', algorithm: 'btree', columns: ['tableName', 'id'] }],
+  },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    tableName: t.string(),
+    row: t.string(),
+    user: t.string().index('btree'),
+  }
+);
+
+const spacetimedb = schema({ entity, relation, snapshotChunk, kvCache, nodePage, nodeChat, tableDef, tableRow });
 
 export default spacetimedb;
 
@@ -102,5 +128,23 @@ export const ingestSnapshot = spacetimedb.reducer(
   { snapId: t.string(), data: t.string(), user: t.string() },
   (ctx, { snapId, data, user }) => {
     ctx.db.snapshotChunk.insert({ id: 0n, snapId, idx: 0, data, user });
+  }
+);
+
+/** Find-or-create a user table definition (idempotent on name+user). */
+export const defineTable = spacetimedb.reducer(
+  { name: t.string(), fields: t.string(), user: t.string() },
+  (ctx, { name, fields, user }) => {
+    for (const r of ctx.db.tableDef.iter()) {
+      if (r.name === name && r.user === user) { ctx.db.tableDef.id.update({ ...r, fields }); return; }
+    }
+    ctx.db.tableDef.insert({ id: 0n, name, fields, user });
+  }
+);
+
+export const insertTableRow = spacetimedb.reducer(
+  { tableName: t.string(), row: t.string(), user: t.string() },
+  (ctx, { tableName, row, user }) => {
+    ctx.db.tableRow.insert({ id: 0n, tableName, row, user });
   }
 );

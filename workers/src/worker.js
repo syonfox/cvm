@@ -211,6 +211,19 @@ async function buildNetwork(env, text, user, schema) {
       if (h.name !== n.label) edges.push({ source: n.id, target: h.name, rel: "similar-to (db)", score: Math.round(similarity(n.label, h.name) * 100) / 100 });
     }
   }
+  // structured ingest step 3: one row per entity in the user table
+  let tableInfo = null;
+  if (schema?.table) {
+    const tname = String(schema.table).toLowerCase().replace(/[^a-z0-9_-]+/g, "_").slice(0, 60) || "entities";
+    const fields = Array.isArray(schema.fields) && schema.fields.length ? schema.fields : [{ name: "label", type: "text" }, { name: "kind", type: "type" }];
+    await env.DB.prepare("INSERT OR IGNORE INTO user_tables(name,fields,constraints_text,user,created) VALUES(?,?,?,?,?)").bind(tname, JSON.stringify(fields), schema.constraints || "", user, Date.now() / 1000).run();
+    const t = await env.DB.prepare("SELECT id FROM user_tables WHERE name=? AND user=?").bind(tname, user).first();
+    tableInfo = { table: { id: t?.id, name: tname, fields } };
+    if (t) for (const n of nodes) {
+      const row = { label: n.label, kind: n.kind, ...Object.fromEntries(Object.entries(n.attrs || {}).filter(([, v]) => ["string", "number", "boolean"].includes(typeof v))) };
+      await env.DB.prepare("INSERT INTO table_rows(table_id,row,user,created) VALUES(?,?,?,?)").bind(t.id, JSON.stringify(row), user, Date.now() / 1000).run();
+    }
+  }
   const now = Date.now() / 1000;
   for (const n of nodes) await env.DB.prepare("INSERT INTO entities(name,kind,attrs,user) VALUES(?,?,?,?)").bind(n.label, n.kind, JSON.stringify(n.attrs || {}), user).run();
   for (const e of edges) await env.DB.prepare("INSERT INTO relations(src,dst,rel,score,evidence,user) VALUES(?,?,?,?,?,?)").bind(e.source, e.target, e.rel, e.score || 0.5, "", user).run();
@@ -218,7 +231,7 @@ async function buildNetwork(env, text, user, schema) {
   for (const n of nodes) n.data = { id: n.id, label: n.label, kind: n.kind, offset: n.offset || 0 };
   for (const e of edges) e.data = { source: e.source, target: e.target, label: e.rel, score: e.score || 0.5 };
   await env.DB.prepare("INSERT INTO graphs(user,text,nodes,edges,flags,created) VALUES(?,?,?,?,?,?)").bind(user, text, JSON.stringify(nodes), JSON.stringify(edges), JSON.stringify(flags), now).run();
-  return { nodes, edges, adversarial: flags, ai_raw: ai, user };
+  return { nodes, edges, adversarial: flags, ai_raw: ai, user, table: tableInfo };
 }
 
 // ---- minimal sqlite3 writer: rowid tables, leaf pages + single interior root ----
@@ -530,6 +543,17 @@ export default {
       }
     }
     if (req.method === "GET" && url.pathname === "/api/sync/ping") return json({ ok: true, via: "do", at: Date.now() });
+    if (req.method === "GET" && url.pathname === "/api/tables") {
+      const user = url.searchParams.get("user") || "", tname = url.searchParams.get("table") || "";
+      const t = await env.DB.prepare("SELECT id, fields FROM user_tables WHERE name=? AND user=?").bind(tname, user).first();
+      if (!t) return json({ ok: false, error: "table not found", rows: [] });
+      const rr = await env.DB.prepare("SELECT id, row FROM table_rows WHERE table_id=? ORDER BY id").bind(t.id).all();
+      const fields = JSON.parse(t.fields || "[]");
+      const rows = (rr.results || []).map((r) => ({ id: r.id, ...JSON.parse(r.row || "{}") }));
+      const sort = fields.some((f) => f.name === url.searchParams.get("sort")) ? url.searchParams.get("sort") : "id";
+      rows.sort((a, b) => String(a[sort] ?? "").toLowerCase().localeCompare(String(b[sort] ?? "").toLowerCase()));
+      return json({ ok: true, table: tname, fields, sort, rows });
+    }
 
     // ---- POST ----
     if (req.method === "POST") {
@@ -549,6 +573,23 @@ export default {
         if (!checkAuth(req, env)) return json({ error: "unauthorized: bad/missing token" }, 401);
         const user = await getUser(env, body, req);
         return json(await buildNetwork(env, body.text || "", user, body.schema || null));
+      }
+      if (url.pathname === "/api/tables" || url.pathname === "/api/tables/rows") {
+        const user = await getUser(env, body, req);
+        const parseFields = (raw) => {
+          const list = Array.isArray(raw) ? raw : String(raw || "").split(",").map((s) => s.trim()).filter(Boolean)
+            .map((s) => { const [name, type] = s.split(":"); return { name: (name || "").trim().replace(/\s+/g, "_"), type: (type || "text").trim() }; });
+          return (list.length ? list : [{ name: "label", type: "text" }, { name: "kind", type: "type" }]).slice(0, 24);
+        };
+        const name = String(body.table || "entities").toLowerCase().replace(/[^a-z0-9_-]+/g, "_").slice(0, 60) || "entities";
+        const fields = parseFields(body.fields);
+        await env.DB.prepare("INSERT INTO user_tables(name,fields,constraints_text,user,created) VALUES(?,?,?,?,?) ON CONFLICT(name,user) DO UPDATE SET fields=excluded.fields, constraints_text=excluded.constraints_text")
+          .bind(name, JSON.stringify(fields), body.constraints || "", user, Date.now() / 1000).run();
+        const t = await env.DB.prepare("SELECT id FROM user_tables WHERE name=? AND user=?").bind(name, user).first();
+        if (url.pathname === "/api/tables") return json({ ok: true, created: true, table: { id: t.id, name, fields, constraints: body.constraints || "" } });
+        const rows = body.rows || [body.row || {}];
+        for (const r of rows) await env.DB.prepare("INSERT INTO table_rows(table_id,row,user,created) VALUES(?,?,?,?)").bind(t.id, JSON.stringify(r), user, Date.now() / 1000).run();
+        return json({ ok: true, inserted: rows.map((row) => ({ table: name, row })) });
       }
       if (url.pathname === "/define") {
         return json(await defineConcept(env, body.concept || ""));
