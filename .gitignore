@@ -8,3 +8,5 @@ __pycache__/
 *.swp
 *.swo
 .wrangler/
+__pycache__/
+__pycache__/
