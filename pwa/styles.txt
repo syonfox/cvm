@@ -233,7 +233,7 @@
     border-radius:12px 12px 4px 12px;padding:6px 10px;font-size:11px;max-width:210px;
     font-family:Inter,system-ui,sans-serif;backdrop-filter:blur(8px);box-shadow:0 8px 24px rgba(0,0,0,.45)}
   #catBubble b{color:#34d399}
-  #catPal svg{width:116px;height:116px;overflow:visible;filter:drop-shadow(0 10px 20px rgba(0,0,0,.55)) drop-shadow(0 0 10px rgba(245,158,11,.12))}
+  #catPal svg{width:132px;height:132px;overflow:visible;filter:drop-shadow(0 10px 20px rgba(0,0,0,.55)) drop-shadow(0 0 10px rgba(156,163,175,.18))}
   #catPal.idle svg{animation:catBob 3.2s ease-in-out infinite}
   #catPal.thinking svg{animation:catBounce .55s ease-in-out infinite}
   #catPal .eye{transform-box:fill-box;transform-origin:center;animation:catBlink 5.5s infinite}
@@ -271,12 +271,23 @@
   #catPal.done #catBubble{border-color:rgba(52,211,153,.8);box-shadow:0 0 18px rgba(52,211,153,.3)}
   #catPal.err #catBubble{border-color:rgba(251,113,133,.7)}
 
-/* ---- structured-mode object bar (toggled by input mode switch) ---- */
-#structBar{display:none;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px}
+/* ---- structured ingest bar: 1 define array -> 2 find/create table -> 3 insert -> 4 sort+render ---- */
+#structBar{display:none;flex-direction:column;gap:8px;margin-top:8px;width:100%;
+  background:linear-gradient(180deg,rgba(156,163,175,.08),rgba(0,0,0,.25));
+  border:1px solid rgba(156,163,175,.35);border-radius:var(--radius-m);padding:10px}
 #structBar.show{display:flex}
-#structBar .field{flex:1;min-width:140px}
-#structBar #structLabel{flex:2;min-width:160px}
-#structBar #structConstraints{flex:2;min-width:160px}
+.struct-steps{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:11px;color:var(--dim)}
+.struct-steps b{display:inline-flex;width:17px;height:17px;border-radius:50%;align-items:center;justify-content:center;
+  background:linear-gradient(180deg,#9ca3af,#4b5563);color:#fff;font-size:10px;box-shadow:0 2px 0 #111827}
+.struct-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.struct-row .field{flex:1;min-width:150px}
+#structSort{flex:0 1 130px;min-width:110px}
+#structRows{overflow:auto;max-height:260px}
+#structRows table{width:100%;border-collapse:collapse;font-size:11.5px}
+#structRows th,#structRows td{border:1px solid var(--border);padding:5px 8px;text-align:left;white-space:nowrap}
+#structRows th{background:rgba(156,163,175,.18);color:#e5e7eb;position:sticky;top:0}
+.seg-label{display:flex;align-items:center;padding:0 8px;font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
+#modeSwitch [data-mode][aria-pressed="true"]{background:linear-gradient(180deg,#9ca3af,#4b5563) !important;color:#fff !important;box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
 
 /* ---- entities: every JS-rendered entity array uses these selectors ----
    (nodes list, version rows, chain rows). Dynamic per-kind color comes in
@@ -329,9 +340,9 @@ button.secondary:disabled{opacity:.45;cursor:not-allowed;transform:none}
   box-shadow:0 5px 0 #05080f,0 8px 16px rgba(0,0,0,.5),inset 0 -4px 8px rgba(0,0,0,.45)}
 .arcade-mini:active{transform:translateY(3px);box-shadow:0 1px 0 #05080f}
 
-/* ---- intro.js guided tour: smoky silver/bronze, darkened ---- */
-:root{ --tour-accent:#d97706; --tour-hi:#94a3b8; }
-.introjs-tooltip{background:linear-gradient(160deg,rgba(43,38,33,.97),rgba(16,14,12,.98));border:1px solid rgba(217,119,6,.55);color:var(--text);
+/* ---- intro.js guided tour: smoky titanium/silver, darkened ---- */
+:root{ --tour-accent:#9ca3af; --tour-hi:#6b7280; }
+.introjs-tooltip{background:linear-gradient(160deg,rgba(43,38,33,.97),rgba(16,14,12,.98));border:1px solid rgba(156,163,175,.6);color:var(--text);
   border-radius:16px;padding:6px;box-shadow:0 24px 80px rgba(0,0,0,.75),0 0 32px rgba(52,211,153,.15);
   min-width:300px;max-width:380px;font-family:Inter,system-ui,sans-serif}
 .introjs-tooltip-title{font-size:15px;font-weight:800;color:#fff;margin:10px 12px 2px}
@@ -339,11 +350,11 @@ button.secondary:disabled{opacity:.45;cursor:not-allowed;transform:none}
 .introjs-tooltiptext b,.introjs-tooltiptext code{color:var(--tour-accent)}
 .introjs-button{border-radius:10px !important;font-weight:700 !important;font-size:12.5px !important;
   padding:7px 14px !important;text-shadow:none !important}
-.introjs-nextbutton{background:linear-gradient(180deg,#b45309,#92400e) !important;color:#fff !important;border:1px solid rgba(245,158,11,.6) !important;box-shadow:0 3px 0 #451a03 !important}
-.introjs-nextbutton:active{transform:translateY(2px);box-shadow:0 1px 0 #451a03 !important}
+.introjs-nextbutton{background:linear-gradient(180deg,#9ca3af,#4b5563) !important;color:#fff !important;border:1px solid rgba(229,231,235,.55) !important;box-shadow:0 3px 0 #111827 !important}
+.introjs-nextbutton:active{transform:translateY(2px);box-shadow:0 1px 0 #111827 !important}
 .introjs-prevbutton,.introjs-skipbutton{background:linear-gradient(180deg,rgba(148,163,184,.22),rgba(71,85,105,.25)) !important;color:#e2e8f0 !important;border:1px solid rgba(148,163,184,.45) !important;box-shadow:0 3px 0 rgba(0,0,0,.5) !important}
 .introjs-disabled{opacity:.35 !important}
-.introjs-helperLayer{border-radius:14px;box-shadow:0 0 0 9999px rgba(8,7,6,.82),0 0 40px rgba(217,119,6,.25) !important;border:2px solid var(--tour-accent) !important}
+.introjs-helperLayer{border-radius:14px;box-shadow:0 0 0 9999px rgba(8,7,6,.82),0 0 40px rgba(156,163,175,.25) !important;border:2px solid var(--tour-accent) !important}
 .introjs-progressbar{background:linear-gradient(90deg,var(--tour-hi),var(--tour-accent)) !important}
 .introjs-bullets ul li a{background:rgba(255,255,255,.2) !important}
 .introjs-bullets ul li a.active{background:var(--tour-accent) !important}
@@ -392,7 +403,7 @@ button.secondary:disabled{opacity:.45;cursor:not-allowed;transform:none}
 #cyTools button.holding{background:radial-gradient(circle at 35% 28%,rgba(255,255,255,.5) 0 8%,#a78bfa 42%,#5b21b6 82%)}
 /* viewer icon buttons match; node-page tabs stay readable pills (was 50% = broken circles) */
 #nodePageTabs button{border-radius:10px;padding:7px 14px}
-#nodePageTabs button.on{background:linear-gradient(180deg,#b45309,#92400e);border-color:rgba(245,158,11,.6);color:#fff;box-shadow:0 3px 0 #451a03}
+#nodePageTabs button.on{background:linear-gradient(180deg,#9ca3af,#4b5563);border-color:rgba(229,231,235,.55);color:#fff;box-shadow:0 3px 0 #111827}
 /* text buttons: cabinet press + arcade hover expand */
 .tool-row .secondary,#layerFoot button,.feat-vote{transition:transform .1s ease-out,box-shadow .1s ease-out,filter .15s;box-shadow:0 3px 0 rgba(0,0,0,.45)}
 .tool-row .secondary:hover,#layerFoot button:hover,.feat-vote:hover{transform:scale(1.06);filter:brightness(1.15)}
