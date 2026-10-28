@@ -6,6 +6,11 @@ compatibility_date = "2025-06-01"
 [[rules]]
 type = "Text"
 globs = ["../*.html"]
+fallthrough = true
+[[rules]]
+type = "Text"
+globs = ["**/*.svg"]
+fallthrough = true
 
 [[d1_databases]]
 binding = "DB"

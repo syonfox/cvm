@@ -6,6 +6,7 @@
 import { agentRecommend, agentImprove, agentInvestigate, agentZero, agentDuel, DEFAULT_ALLOW } from "./agent.js";
 import indexHtml from "../../index.html";
 import shotHtml from "../../0shot.html";
+import iconSvg from "../../icon.svg";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS entities (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, kind TEXT, attrs TEXT, embedding TEXT, user TEXT);
@@ -214,6 +215,8 @@ export default {
     // ---- static ----
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) return html(indexHtml);
     if (req.method === "GET" && url.pathname === "/0shot.html") return html(shotHtml);
+    if (req.method === "GET" && (url.pathname === "/icon.svg" || url.pathname === "/favicon.ico"))
+      return new Response(iconSvg, { headers: { "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=86400" } });
     if (req.method === "GET" && url.pathname === "/health") return json({ status: "ok", runtime: "cloudflare-workers" });
     if (req.method === "GET" && url.pathname === "/info") return json({ lan_ip: null, public_ip: null, port: 443, exec_mode: "disabled", runtime: "cloudflare-workers" });
     if (req.method === "GET" && url.pathname.startsWith("/search")) {

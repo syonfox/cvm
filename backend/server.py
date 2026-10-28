@@ -760,7 +760,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             fpath=os.path.join(root, path.lstrip("/"))
             if os.path.isfile(fpath):
                 with open(fpath,"rb") as f: data=f.read()
-                ctype="text/html" if fpath.endswith(".html") else "application/octet-stream"
+                ctype="text/html" if fpath.endswith(".html") else ("image/svg+xml" if fpath.endswith(".svg") else "application/octet-stream")
                 if fpath.endswith(".js"): ctype="application/javascript"
                 if fpath.endswith(".css"): ctype="text/css"
                 if fpath.endswith(".svg"): ctype="image/svg+xml"
