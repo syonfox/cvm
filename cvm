@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# CVM — the one entry point. Everything else (start.sh, deploy.sh) delegates here.
+#
+#   ./cvm            same as ./cvm dev
+#   ./cvm setup      check Debian 13 toolchain + create .env / workers/.dev.vars
+#   ./cvm dev        Node/Cloudflare Worker locally (RECOMMENDED, same code as prod)
+#   ./cvm py         legacy Python backend (only needed for /exec sandbox + SMTP)
+#   ./cvm check      syntax-check every runtime + list route parity
+#   ./cvm deploy     publish SpacetimeDB module (if CLI present) + wrangler deploy
+#   ./cvm stop|status|logs   manage the ./cvm py background process
+#
+# Recommended environment: Debian 13 (trixie), Node 20+, Python 3.13 (legacy only).
+set -euo pipefail
+cd "$(dirname "$0")"
+PORT="${PORT:-3334}"
+PIDFILE="/tmp/opencode/cvm.pid"
+LOG="/tmp/opencode/cvm.log"
+mkdir -p /tmp/opencode
+
+need() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1 — run ./cvm setup"; exit 1; }; }
+
+gen_dev_vars() {
+  [ -f workers/.dev.vars ] && return 0
+  python3 - <<'EOF'
+import os
+env = {}
+if os.path.exists(".env"):
+    for line in open(".env"):
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line: continue
+        k, v = line.split("=", 1)
+        env.setdefault(k.strip(), v.strip())
+base = env.get("AI_BASE_URL", "")
+if not base and env.get("AI_URL"):
+    base = env["AI_URL"].replace("/chat/completions", "").rstrip("/")
+with open("workers/.dev.vars", "w") as f:
+    f.write(f"MODEL_API_KEY={env.get('MODEL_API_KEY') or env.get('AI_API_KEY','')}\n"
+            f"AI_BASE_URL={base or 'https://api.meta.ai/v1'}\n"
+            f"AI_MODEL={env.get('AI_MODEL','muse-spark-1.3')}\n"
+            f"AUTH_TOKEN={env.get('AUTH_TOKEN','')}\n")
+print("generated workers/.dev.vars from .env (edit it directly from here on)")
+EOF
+}
+
+case "${1:-dev}" in
+  setup)
+    echo "== CVM setup (recommended: Debian 13) =="
+    . /etc/os-release 2>/dev/null || true
+    echo "os: ${PRETTY_NAME:-unknown}  (Debian 13 'trixie' recommended)"
+    for t in python3 node wrangler; do
+      if command -v $t >/dev/null; then echo "ok: $t $($t --version 2>&1 | head -1)"; else echo "MISSING: $t"; fi
+    done
+    command -v node >/dev/null || echo "  install: sudo apt install nodejs npm   # or NodeSource for Node 20+"
+    command -v wrangler >/dev/null || echo "  install: npm i -g wrangler"
+    [ -f .env ] || { cp .env.example .env; echo "created .env from .env.example — put your AI key in it"; }
+    gen_dev_vars
+    if command -v wrangler >/dev/null; then
+      (cd workers && wrangler d1 execute cvm --local --file schema.sql >/dev/null 2>&1 && echo "local D1 schema applied") || echo "note: local D1 schema will apply on first ./cvm dev"
+    fi
+    echo "done. Next: ./cvm dev   then open http://localhost:8787"
+    ;;
+  dev|edge|"")
+    need node; need wrangler; gen_dev_vars
+    echo "CVM (Node/Worker runtime) → http://localhost:8787  (same code as production)"
+    cd workers && exec wrangler dev --local --ip 0.0.0.0
+    ;;
+  py|python|start)
+    need python3
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then echo "Already running (pid $(cat "$PIDFILE"))"; exit 0; fi
+    nohup python3 backend/server.py > "$LOG" 2>&1 &
+    echo $! > "$PIDFILE"
+    echo "CVM (legacy Python) → http://localhost:$PORT (pid $!) — logs: ./cvm logs"
+    ;;
+  stop)
+    [ -f "$PIDFILE" ] && { kill "$(cat "$PIDFILE")" 2>/dev/null && echo Stopped || echo "Not running"; rm -f "$PIDFILE"; } || echo "No pid file"
+    ;;
+  status)
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+      echo "py backend running (pid $(cat "$PIDFILE"))"; curl -s "http://localhost:$PORT/health"; echo
+    else echo "py backend not running (./cvm dev needs no status — it runs in your terminal)"; fi
+    ;;
+  logs) tail -n "${2:-50}" "$LOG" ;;
+  check)
+    python3 -c "import ast; [ast.parse(open(f).read()) for f in ['backend/server.py','backend/meta_ai.py','backend/memcache.py']]; print('python ok')"
+    for f in workers/src/worker.js workers/src/agent.js workers/src/sync.js; do node --check "$f"; done; echo "node ok"
+    bash -n cvm start.sh; echo "shell ok"
+    echo "routes: python $(grep -oE 'self\.path==\"[^\"]+\"|self\.path\.startswith\(\"[^\"]+\"' backend/server.py | sort -u | wc -l) · worker $(grep -oE 'url\.pathname === \"[^\"]+\"' workers/src/worker.js | sort -u | wc -l) (see docs/migration-node.md)"
+    ;;
+  deploy)
+    if command -v spacetime >/dev/null; then spacetime publish --project-path ./spacetimedb -s maincloud -y all || echo "(!) spacetime publish failed — continuing"; else echo "(!) spacetime CLI not found — skipping sync-server #2 publish"; fi
+    need wrangler; (cd workers && wrangler deploy)
+    echo "live: https://threatpath.sgol.workers.dev (or your workers.dev subdomain)"
+    ;;
+  *) echo "Usage: ./cvm {setup|dev|py|check|deploy|stop|status|logs}"; exit 1 ;;
+esac

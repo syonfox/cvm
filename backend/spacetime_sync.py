@@ -2,7 +2,7 @@
 
 The local backend NEVER exposes SpacetimeDB credentials to the browser.
 Browser -> this backend (/api/spacetime/*) -> SpacetimeDB HTTP route.
-memcache.py stays L1; sqlite stays cold backup (see SPACETIMEDB_MIGRATION.md).
+memcache.py stays L1; sqlite stays cold backup (see docs/spacetimedb.md).
 
 Usage (once `spacetime` CLI is pointed at maincloud or local):
     from spacetime_sync import dual_write_entity, dual_write_relation, backfill, proxy_stats
