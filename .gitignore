@@ -13,3 +13,9 @@ __pycache__/
 # wrangler local dev secrets (generated from .env, never commit)
 .dev.vars
 workers/.dev.vars
+workers/.vars.dev
+.vars.dev
+# spacetimedb module build
+node_modules/
+spacetimedb/dist/
+spacetimedb/node_modules/

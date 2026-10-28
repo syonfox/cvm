@@ -52,3 +52,60 @@ curl localhost:3333/health
 ```
 
 See `GETTING_STARTED.md` (product tour) and `SPACETIMEDB_MIGRATION.md` (migration detail).
+
+## Vision: two redundant sync servers + a view-only viewer
+
+Every graph edit races down **two independent sync paths** and the UI shows which one
+acked first — no single box to trust, and you can *see* the redundancy working.
+
+```
+                        ┌── #1 Cloudflare Durable Object (GraphSync, per-graph room) ──┐
+  editor (index.html) ──┤  WS live fan-out + HTTP publish, latest snapshot in DO storage ├─► live clients
+  commit / share / Race │                                                              │
+  `CVMSync.racePublish` └── #2 SpacetimeDB (durable module tables, best-effort proxy) ──┘
+        │ shows winner: "sync race: DO won · 42ms vs spacetime 180ms"
+        ▼
+  viewer (viewer.html) — fullscreen, read-only: zoom/fit, force/tree/grid,
+  follow-live toggle, big home button. ?g=<uuid>. Subscribes DO over WS,
+  falls back to polling /api/sync/state. No editing UI by design.
+```
+
+| Piece | File | Role |
+|---|---|---|
+| Sync server #1 | `workers/src/sync.js` (`GraphSync` DO) | Per-graph room (`graph:<uuid>`). WS `hello`/`publish`, broadcast `state`, persist latest snapshot. HTTP: `GET /api/sync/state`, `POST /api/sync/publish`. |
+| Sync server #2 | SpacetimeDB module (`spacetimedb/schema.ts`) via `POST /api/spacetime/publish` | Durable tables (`entity`, `relation`, `node_page`, …). Honest `skipped` answer when `SPACETIME_HOST` is unset — the race never shows a false win. |
+| Race client | `sync-client.js` (`window.CVMSync`) | `racePublish(uuid, doc)` fires both in parallel, reports `{winner, doMs, stMs}` into `#syncRace` + AI log. `subscribe(uuid, cb)` = WS live with 3s poll fallback. |
+| Viewer | `viewer.html` | Fullscreen read-only graph. Controls are adjustment-only (zoom/fit/layout/follow-live) + big home button. |
+| Local twin | `backend/server.py` (`sync_publish`/`sync_state`, in-memory) | Same `/api/sync/*` shapes on the Python backend (no WS upgrade in stdlib) so `bash start.sh` dev behaves like the edge. `/api/graph/commit` also mirrors into sync. |
+
+**Sync host setting:** the editor's Layers rail has a `sync host:` row (blank = auto =
+same as backend/origin). Type a bare LAN address like `192.168.1.5:8787` (wrangler dev
+port) and every race + live subscribe goes there instead; `test` pings
+`/api/sync/ping` first. The choice persists in `osint_sync_host`, is passed to the
+viewer as `?sync=` when you open it, and the viewer accepts `?sync=` directly too
+(tap its sync badge to change hosts on the spot).
+
+## Final deploy: Cloudflare + SpacetimeDB + browser
+
+The browser is a full participant: it publishes to **both** backends independently and
+each client syncs from whichever answers — both fast, either sufficient.
+
+```bash
+# 1. edge app + sync #1 (DO + D1)
+cd workers
+wrangler d1 execute cvm --remote --file schema.sql
+wrangler deploy   # → https://<you>.workers.dev (serves index/0shot/viewer + API + DO)
+wrangler secret put MODEL_API_KEY
+
+# 2. sync #2 (durable tables)
+spacetime publish --project-path ./spacetimedb -s maincloud osintdb
+# then set SPACETIME_HOST (+ creds) as Worker env / .env SPACETIME_HOST
+# until then /api/spacetime/publish answers {skipped:true} and DO carries sync alone
+
+# 3. browser
+# open / → build → every commit races DO vs SpacetimeDB, badge shows winner
+# open /viewer.html?g=<uuid> → fullscreen read-only, follows live
+```
+
+Local equivalent: `bash start.sh edge` (Worker + local D1 + DO with `--local`),
+or `bash start.sh` (Python twin, same race UI, Spacetime skipped until configured).

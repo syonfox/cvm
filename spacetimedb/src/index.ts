@@ -1,7 +1,7 @@
 import { schema, table, t } from 'spacetimedb/server';
 
 /** Canonical entity (mirrors sqlite `entities`). Public for subscribed search. */
-export const entity = table(
+const entity = table(
   { name: 'entity', public: true },
   {
     id: t.u64().primaryKey().autoInc(),
@@ -14,7 +14,7 @@ export const entity = table(
 );
 
 /** Directed relation (mirrors sqlite `relations`). Indexed for graph traversal. */
-export const relation = table(
+const relation = table(
   {
     name: 'relation',
     public: true,
@@ -32,7 +32,7 @@ export const relation = table(
 );
 
 /** Chunked graph snapshots (rows have ~64KB budget; big graphs split here). */
-export const snapshotChunk = table(
+const snapshotChunk = table(
   {
     name: 'snapshot_chunk',
     public: false,
@@ -48,7 +48,7 @@ export const snapshotChunk = table(
 );
 
 /** TTL cache (mirrors memcache semantics: key/result/expires_at). */
-export const kvCache = table(
+const kvCache = table(
   { name: 'kv_cache', public: false },
   {
     key: t.string().primaryKey(),
@@ -58,7 +58,7 @@ export const kvCache = table(
 );
 
 /** Per-node living page (refined over time; sqlite `node_pages` mirrors this). */
-export const nodePage = table(
+const nodePage = table(
   {
     name: 'node_page',
     public: true,
@@ -76,7 +76,7 @@ export const nodePage = table(
 );
 
 /** Per-node context chat (append-only; sqlite `node_msgs` mirrors this). */
-export const nodeChat = table(
+const nodeChat = table(
   {
     name: 'node_chat',
     public: true,
@@ -95,3 +95,12 @@ export const nodeChat = table(
 const spacetimedb = schema({ entity, relation, snapshotChunk, kvCache, nodePage, nodeChat });
 
 export default spacetimedb;
+
+// Called by POST /api/spacetime/publish (backend proxy): stores one full-doc
+// snapshot as a single chunk (idx 0). Keeps the race honest when configured.
+export const ingestSnapshot = spacetimedb.reducer(
+  { snapId: t.string(), data: t.string(), user: t.string() },
+  (ctx, { snapId, data, user }) => {
+    ctx.db.snapshotChunk.insert({ id: 0n, snapId, idx: 0, data, user });
+  }
+);

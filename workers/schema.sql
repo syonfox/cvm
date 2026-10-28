@@ -13,3 +13,6 @@ CREATE TABLE IF NOT EXISTS graph_versions (uuid TEXT NOT NULL, version INTEGER N
 CREATE INDEX IF NOT EXISTS idx_graph_versions ON graph_versions(uuid, version);
 CREATE TABLE IF NOT EXISTS page_versions (node TEXT NOT NULL, user TEXT NOT NULL DEFAULT '', version INTEGER NOT NULL, title TEXT, kind TEXT, body TEXT, message TEXT, created REAL, PRIMARY KEY (node, user, version));
 CREATE INDEX IF NOT EXISTS idx_page_versions ON page_versions(node, user, version);
+CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);
+CREATE TABLE IF NOT EXISTS feature_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, detail TEXT DEFAULT '', contact TEXT DEFAULT '', votes INTEGER NOT NULL DEFAULT 1, status TEXT DEFAULT 'open', created REAL);
+CREATE TABLE IF NOT EXISTS feature_votes (req_id INTEGER NOT NULL, voter TEXT NOT NULL, created REAL, PRIMARY KEY (req_id, voter));

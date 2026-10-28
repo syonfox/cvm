@@ -33,6 +33,11 @@ case "$cmd" in
     # Unified codebase, edge runtime locally: same Worker code + routes as prod,
     # D1 running locally, secrets from workers/.dev.vars (auto-loaded).
     # Binds 0.0.0.0 so LAN hosts can reach it, same as the linux server.
+    # NOTE: run from the repo root as `bash start.sh edge` so `cd workers`
+    # happens here — `wrangler dev` only auto-loads .dev.vars next to
+    # wrangler.toml. Running `wrangler dev` from the repo root will NOT
+    # pick up MODEL_API_KEY (AI calls then fall back to heuristics).
+    # --local keeps D1 local (local plan); drop it to test against remote D1.
     # First run: generates workers/.dev.vars from repo-root .env.
     if [ ! -f workers/.dev.vars ]; then
       python3 - <<'EOF'
@@ -59,7 +64,7 @@ with open("workers/.dev.vars", "w") as f:
 print("generated workers/.dev.vars from .env (edit it directly from here on)")
 EOF
     fi
-    cd workers && exec wrangler dev --ip 0.0.0.0
+    cd workers && exec wrangler dev --local --ip 0.0.0.0
     ;;
   status)
     if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then

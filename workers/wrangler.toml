@@ -5,7 +5,11 @@ compatibility_date = "2025-06-01"
 # Bundle the repo-root HTML into the Worker so one project serves everything.
 [[rules]]
 type = "Text"
-globs = ["../*.html"]
+globs = ["../pwa/*.html"]
+fallthrough = true
+[[rules]]
+type = "Text"
+globs = ["../pwa/sync-client.txt", "../pwa/styles.txt", "../pwa/manifest.txt"]
 fallthrough = true
 [[rules]]
 type = "Text"
@@ -17,12 +21,26 @@ binding = "DB"
 database_name = "cvm"
 database_id = "d04963fd-dbae-441b-94eb-1fb5fdba18bf"
 
+# Redundant sync server #1: per-graph Durable Object (realtime fan-out + WS).
+[durable_objects]
+bindings = [{ name = "GRAPH_SYNC", class_name = "GraphSync" }]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["GraphSync"]
+
 [vars]
 AI_BASE_URL = "https://api.meta.ai/v1"
 AI_MODEL = "muse-spark-1.3"
 # MODEL_API_KEY is a secret: `wrangler secret put MODEL_API_KEY` (never in code).
 # Local dev uses workers/.dev.vars instead (auto-loaded by `wrangler dev`);
 # generate it from the repo-root .env with:  bash start.sh edge
+# Sync server #2 (SpacetimeDB): publish path for POST /api/spacetime/publish.
+# Set host here (or leave unset = race reports "spacetime skipped", DO carries sync).
+SPACETIME_HOST = "https://maincloud.spacetimedb.com"
+SPACETIME_DB = "osintdb"
+# SPACETIME_TOKEN is a secret: `wrangler secret put SPACETIME_TOKEN` (only needed
+# if the database requires auth; public maincloud DBs often don't).
 
 [dev]
 ip = "0.0.0.0"

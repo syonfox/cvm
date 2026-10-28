@@ -81,6 +81,9 @@ def init_db():
     c.execute("""CREATE TABLE IF NOT EXISTS node_pages (node TEXT NOT NULL, user TEXT NOT NULL DEFAULT '', title TEXT DEFAULT '', kind TEXT DEFAULT '', body TEXT DEFAULT '', updated REAL, PRIMARY KEY (node, user))""")
     c.execute("""CREATE TABLE IF NOT EXISTS node_msgs (id INTEGER PRIMARY KEY AUTOINCREMENT, node TEXT NOT NULL, user TEXT NOT NULL DEFAULT '', role TEXT NOT NULL DEFAULT 'user', text TEXT NOT NULL DEFAULT '', created REAL)""")
     c.execute("""CREATE INDEX IF NOT EXISTS idx_node_msgs ON node_msgs(node, user, id)""")
+    # generic feature-request / vote forum: every unimplemented action funnels here
+    c.execute("""CREATE TABLE IF NOT EXISTS feature_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, detail TEXT DEFAULT '', contact TEXT DEFAULT '', votes INTEGER NOT NULL DEFAULT 1, status TEXT DEFAULT 'open', created REAL)""")
+    c.execute("""CREATE TABLE IF NOT EXISTS feature_votes (req_id INTEGER NOT NULL, voter TEXT NOT NULL, created REAL, PRIMARY KEY (req_id, voter))""")
     # seed prompts
     seeds = {
      "entity_extract": "You are a CVM (Cache Variable Memory) graph builder. Given free-text input, extract a knowledge graph.\nReturn ONLY valid JSON with keys: nodes (list of {id,label,kind,attrs}) and edges (list of {source,target,rel,score}).\nkinds: Person, Organization, Domain, IP, Location, Event, Concept, Asset.\nInput: {text}",
@@ -168,6 +171,108 @@ def cache_set(key, result):
 def load_prompt(name):
     c=sqlite3.connect(DB); r=c.execute("SELECT template FROM prompts WHERE name=?",(name,)).fetchone(); c.close()
     return r[0] if r else None
+
+# ---- feature-request forum: vote board + email notify (generic catch-all) ----
+def send_feature_email(subject, body_text):
+    """Best-effort email. Uses SMTP_* env; no-op (logged) when unconfigured."""
+    host = os.environ.get("SMTP_HOST", "")
+    to = os.environ.get("FEATURE_NOTIFY_TO", "") or os.environ.get("SMTP_USER", "") or os.environ.get("NOTIFY_EMAIL", "")
+    if not host or not to:
+        print(f"[features] no SMTP configured; would send to={to or '(unset)'} subj={subject}\n{body_text[:500]}")
+        return {"sent": False, "reason": "smtp-not-configured"}
+    try:
+        import smtplib
+        from email.message import EmailMessage
+        msg = EmailMessage()
+        msg["Subject"] = subject
+        msg["From"] = os.environ.get("SMTP_FROM", os.environ.get("SMTP_USER", "cvm@localhost"))
+        msg["To"] = to
+        msg.set_content(body_text)
+        port = int(os.environ.get("SMTP_PORT", "587"))
+        user = os.environ.get("SMTP_USER", "")
+        pw = os.environ.get("SMTP_PASS", "") or os.environ.get("SMTP_PASSWORD", "")
+        with smtplib.SMTP(host, port, timeout=15) as s:
+            try: s.starttls()
+            except Exception: pass
+            if user and pw:
+                try: s.login(user, pw)
+                except Exception as e: return {"sent": False, "reason": f"smtp-login: {e}"}
+            s.send_message(msg)
+        return {"sent": True, "to": to}
+    except Exception as e:
+        print(f"[features] email failed: {e}")
+        return {"sent": False, "reason": str(e)[:200]}
+
+def feature_list(limit=100):
+    c = sqlite3.connect(DB)
+    rows = c.execute("SELECT id,title,detail,contact,votes,status,created FROM feature_requests ORDER BY votes DESC, id DESC LIMIT ?", (limit,)).fetchall()
+    c.close()
+    return [{"id": r[0], "title": r[1], "detail": r[2], "contact": r[3], "votes": r[4], "status": r[5], "created": r[6]} for r in rows]
+
+def feature_create(title, detail="", contact=""):
+    title = (title or "").strip()[:200]
+    if not title:
+        return {"ok": False, "error": "title required"}
+    c = sqlite3.connect(DB)
+    cur = c.execute("INSERT INTO feature_requests(title,detail,contact,votes,status,created) VALUES(?,?,?,?,?,?)",
+                    (title, (detail or "")[:4000], (contact or "")[:200], 1, "open", time.time()))
+    rid = cur.lastrowid
+    c.commit(); c.close()
+    mail = send_feature_email(f"[cvm] feature request #{rid}: {title}",
+                              f"New feature request #{rid}\ntitle: {title}\ncontact: {contact}\n\n{detail}\n")
+    return {"ok": True, "id": rid, "votes": 1, "email": mail}
+
+def feature_vote(req_id, voter="anon"):
+    try: req_id = int(req_id)
+    except Exception: return {"ok": False, "error": "bad id"}
+    voter = (voter or "anon")[:120]
+    c = sqlite3.connect(DB)
+    row = c.execute("SELECT id,votes,title FROM feature_requests WHERE id=?", (req_id,)).fetchone()
+    if not row:
+        c.close(); return {"ok": False, "error": "unknown request"}
+    try:
+        c.execute("INSERT INTO feature_votes(req_id,voter,created) VALUES(?,?,?)", (req_id, voter, time.time()))
+        c.execute("UPDATE feature_requests SET votes=votes+1 WHERE id=?", (req_id,))
+        c.commit()
+        first = True
+    except Exception:
+        first = False  # already voted: idempotent
+    votes = c.execute("SELECT votes FROM feature_requests WHERE id=?", (req_id,)).fetchone()[0]
+    c.close()
+    out = {"ok": True, "id": req_id, "votes": votes, "duplicate": not first}
+    if first and votes in (5, 10, 25, 50, 100):
+        out["email"] = send_feature_email(f"[cvm] #{req_id} hit {votes} votes: {row[2]}",
+                                          f"Request #{req_id} reached {votes} votes.\ntitle: {row[2]}")
+    return out
+
+# ---- redundant sync: DO (#1, realtime) + SpacetimeDB (#2, durable) ----
+# Python backend has no WS upgrade in stdlib server, so it acts as the
+# local-dev twin of the DO: POST publish stores latest snapshot, GET state
+# polls it. The browser races this against /api/spacetime/publish.
+_SYNC = {}
+def sync_publish(uuid, doc):
+    uuid = (uuid or "").strip()
+    if not uuid:
+        return {"ok": False, "error": "uuid required"}
+    seq = int(_SYNC.get(uuid, {}).get("seq", 0)) + 1
+    _SYNC[uuid] = {"seq": seq, "doc": doc, "at": int(time.time() * 1000)}
+    return {"ok": True, "uuid": uuid, "seq": seq, "via": "do"}
+
+def sync_state(uuid):
+    s = _SYNC.get((uuid or "").strip(), {"seq": 0, "doc": None, "at": 0})
+    return {"ok": True, "uuid": uuid, "seq": s["seq"], "doc": s["doc"], "at": s["at"], "via": "do"}
+
+def spacetime_publish(uuid, doc):
+    # Best-effort: forwards to SpacetimeDB when SPACETIME_* env is configured,
+    # otherwise honest skip so the race UI never shows a false win.
+    host = os.environ.get("SPACETIME_HOST", "")
+    if not host:
+        return {"ok": False, "skipped": True, "via": "spacetime", "reason": "SPACETIME_HOST not configured"}
+    try:
+        r = _st_call("ingest_snapshot", {"snapId": uuid, "data": json.dumps(doc)[:20000], "user": ""})
+        return {"ok": True, "via": "spacetime", "host": host, "upstream": bool(r)}
+    except Exception as e:
+        return {"ok": False, "via": "spacetime", "error": str(e)[:200]}
 
 # ---- node pages + chat: sqlite now, SpacetimeDB dual-write (best-effort) ----
 def _st_call(reducer, args):
@@ -428,9 +533,16 @@ def define_concept(concept):
     cache_set(key,res)
     return res
 
-def build_network(text, user):
+def build_network(text, user, schema=None):
     prompt_tpl=load_prompt("entity_extract")
     prompt=prompt_tpl.replace("{text}", text)
+    # Structured mode: caller constrains extraction to caller-defined types.
+    # schema = {"types": "Person, Asset", "constraints": "only APT actors"}
+    if schema and (schema.get("types") or schema.get("constraints")):
+        prompt+=("\n\n[STRUCTURED MODE — extract ONLY entities whose kind is one of: "
+                + (schema.get("types") or "(any, but keep kinds tight)")
+                + ". Additional constraints: " + (schema.get("constraints") or "none")
+                + ". Skip anything that does not fit. Put provided constraints in attrs.]")
     ai=ai_chat(prompt)
     nodes=[]; edges=[]
     if ai and not ai.startswith("AI_ERROR"):
@@ -768,15 +880,31 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif self.path.startswith("/api/node-chat"):
             q=parse_qs(urlparse(self.path).query)
             self._json({"msgs":node_chat_list(q.get("node",[""])[0], q.get("user",[""])[0], q.get("limit",["200"])[0], q.get("label",[""])[0])})
+        elif self.path.startswith("/api/features"):
+            # GET vote board (POST lives in do_POST)
+            lim = parse_qs(urlparse(self.path).query).get("limit", ["100"])[0]
+            try: self._json({"ok": True, "requests": feature_list(int(lim))})
+            except Exception: self._json({"ok": True, "requests": feature_list()})
+            return
+        elif self.path.startswith("/api/sync/state"):
+            q=parse_qs(urlparse(self.path).query)
+            self._json(sync_state(q.get("uuid",[""])[0])); return
+        elif self.path=="/api/sync/ping":
+            self._json({"ok": True, "via": "do", "at": int(time.time()*1000)}); return
         else:
-            root=os.path.dirname(os.path.dirname(__file__))
+            root=os.path.join(os.path.dirname(os.path.dirname(__file__)), "pwa")  # one PWA folder: both backends serve the same files
             path=self.path.split("?")[0]
             if path=="/" or path=="": path="/index.html"
+            if path=="/styles.css": path="/styles.txt"  # .txt so Workers Text-rules apply; still CSS
+            if path=="/manifest.webmanifest": path="/manifest.txt"  # .txt so Workers Text-rules apply; still JSON
             fpath=os.path.join(root, path.lstrip("/"))
             if os.path.isfile(fpath):
                 with open(fpath,"rb") as f: data=f.read()
                 ctype="text/html" if fpath.endswith(".html") else ("image/svg+xml" if fpath.endswith(".svg") else "application/octet-stream")
                 if fpath.endswith(".js"): ctype="application/javascript"
+                if fpath.endswith("sync-client.txt"): ctype="application/javascript"  # .txt so Workers Text-rules apply; still JS
+                if fpath.endswith("styles.txt"): ctype="text/css"  # .txt so Workers Text-rules apply; still CSS
+                if fpath.endswith(".webmanifest") or fpath.endswith("manifest.txt"): ctype="application/manifest+json"
                 if fpath.endswith(".css"): ctype="text/css"
                 if fpath.endswith(".svg"): ctype="image/svg+xml"
                 self.send_response(200); self._cors()
@@ -799,7 +927,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not check_auth(self.headers):
                 self._json({"error":"unauthorized: bad/missing token"}); return
             user=get_user(body, self.headers, self._client_ip())
-            res=build_network(body.get("text",""), user)
+            res=build_network(body.get("text",""), user, body.get("schema"))
             self._json(res)
         elif self.path=="/define":
             concept=body.get("concept","")
@@ -955,7 +1083,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             doc=body.get("doc") or {"nodes":body.get("nodes",[]),"edges":body.get("edges",[]),"adversarial":body.get("adversarial",body.get("flags",[]))}
             r=commit_graph(body.get("uuid",""), user, body.get("name",""), doc, body.get("message",""))
             r["ok"]=True
+            try: sync_publish(r.get("uuid",""), doc)
+            except Exception: pass
             self._json(r)
+        elif self.path=="/api/sync/publish":
+            self._json(sync_publish(body.get("uuid",""), body.get("doc")))
+        elif self.path=="/api/spacetime/publish":
+            self._json(spacetime_publish(body.get("uuid",""), body.get("doc")))
         elif self.path=="/api/node-page":
             user=get_user(body, self.headers, self._client_ip())
             self._json(node_page_save(body.get("node",""), user, body.get("title",""), body.get("kind",""), body.get("body",""), label=body.get("label",""), shared=body.get("shared", True) is not False, message=body.get("message","")))
@@ -964,6 +1098,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             m=node_chat_add(body.get("node",""), user, body.get("role","user"), body.get("text",""), label=body.get("label",""))
             if m: self._json({"ok":True,"msg":m})
             else: self._json({"ok":False,"error":"empty node/text"})
+        elif self.path=="/api/features":
+            self._json(feature_create(body.get("title",""), body.get("detail",""), body.get("contact","") or body.get("username","")))
+        elif self.path=="/api/features/vote":
+            voter=(body.get("voter") or body.get("username") or self.headers.get("X-Username") or self._client_ip())
+            self._json(feature_vote(body.get("id"), voter))
         else:
             self.send_response(404); self.end_headers()
     def _json(self,obj):

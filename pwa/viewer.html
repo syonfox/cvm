@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>viewer — cvm read-only</title>
+<link rel="icon" type="image/svg+xml" href="/icon.svg" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+<style>
+  :root{
+    --bg:#02040a; --panel:rgba(8,12,24,.78); --border:rgba(255,255,255,.08);
+    --cyan:#38bdf8; --violet:#a78bfa; --emerald:#34d399; --rose:#fb7185; --amber:#fbbf24;
+    --text:#a8b6c2; --dim:#64748b;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif;overflow:hidden}
+  #cy{position:fixed;inset:0;background:radial-gradient(circle at center,rgba(30,41,59,.35),rgba(5,8,16,.9))}
+  #topbar{position:fixed;top:12px;left:12px;right:12px;display:flex;gap:8px;align-items:center;z-index:10;pointer-events:none}
+  #topbar>*{pointer-events:auto}
+  #homeBtn{background:linear-gradient(135deg,#0284c7,#7c3aed);color:#fff;border:none;border-radius:12px;
+    padding:12px 20px;font-weight:800;font-size:15px;cursor:pointer;display:flex;align-items:center;gap:8px;
+    box-shadow:0 8px 30px rgba(0,0,0,.5);text-decoration:none}
+  #title{flex:1;min-width:0;background:rgba(5,8,16,.8);border:1px solid var(--border);border-radius:12px;
+    padding:8px 14px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;backdrop-filter:blur(8px)}
+  #title .meta{font-size:11px;color:var(--dim);margin-left:8px}
+  #ctrl{position:fixed;right:12px;top:50%;transform:translateY(-50%);z-index:10;display:flex;flex-direction:column;gap:6px}
+  #ctrl button{border-radius:50%;aspect-ratio:1/1;width:auto;height:auto;padding:.85em;font-size:16px;line-height:1;
+    display:flex;align-items:center;justify-content:center;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6);
+    background:radial-gradient(circle at 35% 28%,rgba(255,255,255,.5) 0 8%,#38bdf8 42%,#0c4a6e 82%);
+    border:4px solid #151d31;outline:2px solid rgba(255,255,255,.14);outline-offset:-7px;
+    box-shadow:0 6px 0 #05080f,0 10px 20px rgba(0,0,0,.55),inset 0 2px 4px rgba(255,255,255,.5),inset 0 -5px 9px rgba(0,0,0,.45);
+    cursor:pointer;transition:transform .07s ease-out,box-shadow .07s ease-out,filter .15s}
+  #ctrl button:hover{filter:brightness(1.15)}
+  #ctrl button:active{transform:translateY(4px);box-shadow:0 1px 0 #05080f,0 4px 10px rgba(0,0,0,.5)}
+  #ctrl button.on{background:radial-gradient(circle at 35% 28%,rgba(255,255,255,.5) 0 8%,#34d399 42%,#065f46 82%);
+    box-shadow:0 6px 0 #05080f,0 0 16px rgba(52,211,153,.55)}
+  #homeBtn{transition:transform .1s ease-out,filter .15s}
+  #homeBtn:hover{transform:scale(1.06);filter:brightness(1.12)}
+  #homeBtn:active{transform:translateY(2px) scale(.98)}
+  @media (max-width:720px){
+    #topbar{left:8px;right:8px;top:8px}
+    #homeBtn{padding:8px 12px;font-size:12px}
+    #title{font-size:11px}
+    #ctrl{gap:4px;right:8px}
+    #ctrl button{padding:.55em;font-size:13px;border-width:3px}
+    #race{font-size:10px;left:8px;bottom:8px}
+    #syncLog{display:none}
+  }
+  #race{position:fixed;left:12px;bottom:12px;z-index:10;background:rgba(5,8,16,.85);border:1px solid var(--border);
+    border-radius:999px;padding:6px 14px;font-size:11.5px;color:var(--dim);backdrop-filter:blur(8px);max-width:calc(100vw - 24px)}
+  #race b{color:var(--text)}
+  #livePill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 12px;
+    font-size:11px;font-weight:700;letter-spacing:.02em;border:1px solid var(--border);
+    background:rgba(5,8,16,.8);color:var(--dim);cursor:pointer;white-space:nowrap}
+  #livePill .dot{width:8px;height:8px;border-radius:50%;background:var(--dim)}
+  #livePill.testing{color:var(--amber);border-color:var(--amber)}
+  #livePill.testing .dot{background:var(--amber);animation:pulse 1s ease-in-out infinite}
+  #livePill.ok{color:var(--emerald);border-color:var(--emerald);box-shadow:0 0 18px rgba(52,211,153,.35)}
+  #livePill.ok .dot{background:var(--emerald);box-shadow:0 0 8px var(--emerald)}
+  #livePill.bad{color:var(--rose);border-color:var(--rose)}
+  #livePill.bad .dot{background:var(--rose)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  #syncLog{position:fixed;left:12px;bottom:44px;z-index:10;background:rgba(5,8,16,.85);border:1px solid var(--border);
+    border-radius:10px;padding:8px 10px;font-size:10.5px;line-height:1.5;color:#94a3b8;backdrop-filter:blur(8px);
+    max-width:min(480px,calc(100vw - 24px));max-height:120px;overflow:hidden;white-space:pre-wrap;margin:0;font-family:ui-monospace,monospace}
+</style>
+</head>
+<body>
+<div id="cy"></div>
+<div id="topbar">
+  <a id="homeBtn" href="/"><i class="fa-solid fa-house"></i> home</a>
+  <div id="title">viewer <span class="meta" id="vmeta">connecting…</span></div>
+  <button id="livePill" class="testing" title="test realtime sync"><span class="dot"></span><span id="liveTxt">testing live…</span></button>
+</div>
+<div id="ctrl">
+  <button id="zIn" title="zoom in"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+  <button id="zOut" title="zoom out"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+  <button id="zFit" title="fit"><i class="fa-solid fa-expand"></i></button>
+  <button id="vForce" title="force layout"><i class="fa-solid fa-share-nodes"></i></button>
+  <button id="vTree" title="tree layout"><i class="fa-solid fa-diagram-project"></i></button>
+  <button id="vGrid" title="grid layout"><i class="fa-solid fa-table-cells"></i></button>
+  <button id="live" class="on" title="follow live sync"><i class="fa-solid fa-satellite-dish"></i></button>
+</div>
+<div id="race"><b>sync:</b> <span id="syncRace">idle (DO + SpacetimeDB)</span></div>
+<pre id="syncLog">[sync] waiting for first poll…</pre>
+<script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+<script src="/sync-client.txt"></script>
+<script>
+// sync host: ?sync= wins once (saved), then the saved setting, then same-origin.
+// Accepts bare IPs like ?sync=192.168.1.5:8787 — same as the editor setting.
+(function () {
+  try {
+    const q = new URLSearchParams(location.search).get("sync") || "";
+    if (q && window.CVMSync) window.CVMSync.setSyncHost(q);
+  } catch (_) {}
+  window.cvmSyncHost = () => { try { return localStorage.getItem("osint_sync_host") || ""; } catch (_) { return ""; } };
+})();
+const uuid = new URLSearchParams(location.search).get("g") || "";
+const meta = document.getElementById("vmeta");
+let cy = cytoscape({ container: document.getElementById("cy"), elements: [],
+  style: [
+    { selector: "node", style: { "background-color": "data(color)", label: "data(label)", color: "#e2e8f0",
+      "font-size": 11, "text-valign": "bottom", "text-margin-y": 8, width: "data(width)", height: "data(height)" } },
+    { selector: "edge", style: { width: 2, "line-color": "#475569", "target-arrow-color": "#94a3b8",
+      "target-arrow-shape": "triangle", "curve-style": "bezier", label: "data(label)", "font-size": 9, color: "#e0e7ff" } },
+  ],
+  layout: { name: "cose" }, userZoomingEnabled: true, userPanningEnabled: true, boxSelectionEnabled: false });
+const colors = { Person:"#38bdf8", Organization:"#a78bfa", Domain:"#34d399", IP:"#fb7185", Location:"#fbbf24", Event:"#f472b6", Concept:"#94a3b8", Asset:"#22d3ee" };
+let follow = true, mode = "force";
+function layoutFor(n){
+  if (mode === "tree") return { name:"breadthfirst", directed:true, spacingFactor:1.4, padding:30, animate:true, animationDuration:500, fit:true };
+  if (mode === "grid") return { name:"grid", padding:20, animate:true, animationDuration:500, fit:true, rows:Math.ceil(Math.sqrt(Math.max(1,n))) };
+  return { name:"cose", padding:60, animate:true, animationDuration:800, nodeRepulsion:22000, idealEdgeLength:170, gravity:0.22, numIter:8, refresh:10, fit:true, randomize:false };
+}
+function showDoc(doc){
+  const nodes = doc.nodes || [], edges = doc.edges || [];
+  const els = [];
+  for (const n of nodes) els.push({ data: { id: String(n.id ?? n.label), label: n.label || n.id, color: colors[n.kind] || "#94a3b8", width: 40, height: 40 } });
+  for (const e of edges) els.push({ data: { id: "e" + els.length + (e.source||"") + (e.target||"") + (e.rel||""), source: String(e.source), target: String(e.target), label: e.rel || "" } });
+  cy.elements().remove(); cy.add(els);
+  try { cy.layout(layoutFor(nodes.length)).run(); } catch(_){}
+  meta.textContent = `${nodes.length}n ${edges.length}e · ${uuid.slice(0,8)} · view-only`;
+}
+// realtime try: attempt live, green glow if it works, honest sorry if not.
+async function testLive() {
+  const pill = document.getElementById("livePill"), txt = document.getElementById("liveTxt");
+  pill.className = "testing"; txt.textContent = "testing live…";
+  try {
+    const r = await CVMSync.tryLive(uuid || "default");
+    if (r.live) {
+      pill.className = "ok";
+      txt.textContent = `live ✓ ${r.reason}`;
+      pill.title = `realtime sync works via ${r.host} — click to re-test`;
+    } else {
+      pill.className = "bad";
+      txt.textContent = "sorry — live sync unreachable, retry?";
+      pill.title = `couldn't reach ${r.host}: ${r.reason} — click to retry`;
+    }
+  } catch (e) {
+    pill.className = "bad";
+    txt.textContent = "sorry — live test failed, retry?";
+    pill.title = String((e && e.message) || e).slice(0, 200);
+  }
+}
+document.getElementById("livePill").onclick = testLive;
+async function load(){
+  if (!uuid) { meta.textContent = "no ?g=<id> — open from the graph Share link"; return; }
+  const sbase = () => { try { return CVMSync.getSyncHost(); } catch (_) { return ""; } };
+  try {
+    const t0 = performance.now();
+    const r = await fetch(sbase() + "/api/graph?id=" + encodeURIComponent(uuid));
+    const j = await r.json();
+    if (j.ok && j.doc) { showDoc(j.doc); document.getElementById("syncRace").textContent = `loaded v${j.version||0} via D1 in ${Math.round(performance.now()-t0)}ms`; }
+    else meta.textContent = "unknown graph id";
+  } catch(e){ meta.textContent = "offline: " + e.message; }
+  try { CVMSync.subscribe(uuid, (s) => { if (follow && s.doc) showDoc(s.doc); }); } catch(_){}
+  testLive(); // fire-and-forget realtime attempt alongside the 2s GET poll
+  try {
+    const host = CVMSync.getSyncHost();
+    document.getElementById("syncRace").textContent =
+      `sync via ${host} · tap to change · live ${follow ? "on" : "paused"}`;
+  } catch(_){}
+}
+// tap the race badge to point the viewer at another sync host (IP:8787 friendly)
+document.getElementById("race").onclick = () => {
+  try {
+    const cur = CVMSync.storedSyncHost() || CVMSync.getSyncHost();
+    const v = prompt("sync host (blank = auto/same-origin, e.g. 192.168.1.5:8787):", CVMSync.storedSyncHost() || "");
+    if (v === null) return;
+    const n = CVMSync.setSyncHost(v);
+    document.getElementById("syncRace").textContent = "sync via " + CVMSync.getSyncHost() + (n ? "" : " (auto)");
+    if (uuid) { try { CVMSync.unsubscribe(); } catch(_){} try { CVMSync.subscribe(uuid, (s) => { if (follow && s.doc) showDoc(s.doc); }); } catch(_){} testLive(); }
+  } catch(_) {}
+};
+// basic controls: adjustment only (zoom + layout + follow), no editing
+document.getElementById("zIn").onclick = () => cy.zoom({ level: Math.min(6, cy.zoom()*1.25), renderedPosition: { x: cy.width()/2, y: cy.height()/2 } });
+document.getElementById("zOut").onclick = () => cy.zoom({ level: Math.max(0.1, cy.zoom()/1.25), renderedPosition: { x: cy.width()/2, y: cy.height()/2 } });
+document.getElementById("zFit").onclick = () => { try { cy.fit(40); } catch(_){} };
+const setMode = (m) => { mode = m; try { cy.layout(layoutFor(cy.nodes().length)).run(); } catch(_){} };
+document.getElementById("vForce").onclick = () => setMode("force");
+document.getElementById("vTree").onclick = () => setMode("tree");
+document.getElementById("vGrid").onclick = () => setMode("grid");
+document.getElementById("live").onclick = (e) => { follow = !follow; e.currentTarget.classList.toggle("on", follow); };
+load();
+</script>
+</body>
+</html>

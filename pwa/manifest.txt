@@ -1,0 +1,14 @@
+{
+  "name": "cvm — Cache Variable Memory",
+  "short_name": "cvm",
+  "description": "One question. AI builds the relational graph.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#02040a",
+  "theme_color": "#02040a",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

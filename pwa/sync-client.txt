@@ -1,0 +1,244 @@
+// CVMSync — redundant sync between clients over TWO independent backends:
+//   #1 Cloudflare Durable Object (GraphSync room per graph uuid, WS live + HTTP)
+//   #2 SpacetimeDB (durable module tables; proxied via /api/spacetime/publish)
+// racePublish() fires both in parallel and reports which acked first with ms.
+// No build step: loaded as a plain <script> in index.html and viewer.html.
+//
+// Usage:
+//   const r = await CVMSync.racePublish(uuid, doc);   // {winner, doMs, stMs, ...}
+//   CVMSync.subscribe(uuid, (state) => render(state.doc)); // WS live, poll fallback
+//   const el = CVMSync.badge(); // small span showing last race winner
+
+(function (g) {
+  const POLL_MS = 2000; // 0.5 fps realtime target: plain GET, no WS needed
+  const state = { last: null, ws: null, wsUuid: null, wsOk: false, pollT: null, seq: 0, logs: [], onLog: null };
+
+  function log(msg, extra) {
+    const line = `[sync ${new Date().toISOString().slice(11, 23)}] ${msg}` + (extra ? ` ${extra}` : "");
+    state.logs.push(line);
+    if (state.logs.length > 80) state.logs.splice(0, state.logs.length - 80);
+    try { if (typeof console !== "undefined" && console.debug) console.debug(line); } catch (_) {}
+    try { if (typeof state.onLog === "function") state.onLog(line, state.logs.slice()); } catch (_) {}
+    try {
+      const el = document.getElementById("syncLog");
+      if (el) { el.textContent = state.logs.slice(-8).join("\n"); }
+    } catch (_) {}
+  }
+
+  async function timeIt(fn) {
+    const t0 = performance.now();
+    try {
+      const out = await fn();
+      return { ms: Math.round(performance.now() - t0), out, err: null };
+    } catch (e) {
+      return { ms: Math.round(performance.now() - t0), out: null, err: String((e && e.message) || e) };
+    }
+  }
+
+  function normalizeSyncHost(raw) {
+    // Accepts full URLs or bare "host:port" / IPs like "192.168.1.5:8787".
+    // Always returns an http(s) origin (no trailing slash) or "" if empty.
+    let s = String(raw || "").trim();
+    if (!s) return "";
+    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) s = "http://" + s;
+    try {
+      const u = new URL(s);
+      if (u.protocol !== "http:" && u.protocol !== "https:") return "";
+      return u.origin;
+    } catch (_) { return ""; }
+  }
+
+  function storedSyncHost() {
+    try {
+      const v = localStorage.getItem("osint_sync_host") || "";
+      return normalizeSyncHost(v);
+    } catch (_) { return ""; }
+  }
+
+  function base() {
+    // Resolution order: explicit page override → saved setting → backend → origin.
+    // Works with IPs and wrangler dev :8787, e.g. http://192.168.1.5:8787
+    try {
+      if (typeof window.cvmSyncHost === "function") {
+        const o = normalizeSyncHost(window.cvmSyncHost());
+        if (o) return o;
+      }
+    } catch (_) {}
+    const s = storedSyncHost();
+    if (s) return s;
+    try {
+      if (typeof window.cvmBackend === "function") {
+        const b = window.cvmBackend();
+        if (b) return String(b).replace(/\/$/, "");
+      }
+    } catch (_) {}
+    try {
+      if (window.location && window.location.origin) return window.location.origin.replace(/\/$/, "");
+    } catch (_) {}
+    return "";
+  }
+
+  function setSyncHost(raw) {
+    const n = normalizeSyncHost(raw);
+    try {
+      if (n) localStorage.setItem("osint_sync_host", n);
+      else localStorage.removeItem("osint_sync_host");
+    } catch (_) {}
+    try { if (state.ws || state.pollT) { /* next subscribe picks it up */ } } catch (_) {}
+    return n;
+  }
+
+  async function doPublish(uuid, doc) {
+    const r = await fetch(base() + "/api/sync/publish", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uuid, doc }),
+    });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || "do publish failed");
+    return j; // {ok, seq, via}
+  }
+
+  async function stPublish(uuid, doc) {
+    const r = await fetch(base() + "/api/spacetime/publish", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uuid, doc }),
+    });
+    const j = await r.json();
+    if (!j.ok && !j.skipped) throw new Error(j.error || "spacetime publish failed");
+    return j; // {ok|skipped, via}
+  }
+
+  async function racePublish(uuid, doc) {
+    log(`publish → POST /api/sync/publish + /api/spacetime/publish uuid=${String(uuid).slice(0, 8)}`);
+    const [a, b] = await Promise.all([timeIt(() => doPublish(uuid, doc)), timeIt(() => stPublish(uuid, doc))]);
+    const doOk = !a.err, stOk = !b.err && b.out && !b.out.skipped;
+    let winner = "none";
+    if (doOk && stOk) winner = a.ms <= b.ms ? "do" : "spacetime";
+    else if (doOk) winner = "do";
+    else if (stOk) winner = "spacetime";
+    state.last = { uuid, winner, doMs: a.ms, stMs: b.ms, doErr: a.err, stErr: b.err, stSkipped: !!(b.out && b.out.skipped), at: Date.now() };
+    try {
+      const el = document.getElementById("syncRace");
+      if (el) el.textContent = raceText(state.last);
+    } catch (_) {}
+    log(`race: ${winner} won (do=${a.ms}ms${a.err ? " ERR:" + a.err.slice(0, 80) : ""} st=${b.out && b.out.skipped ? "skipped" : b.ms + "ms" + (b.err ? " ERR:" + b.err.slice(0, 80) : "")})`);
+    return state.last;
+  }
+
+  function raceText(r) {
+    if (!r) return "sync: idle (DO + SpacetimeDB)";
+    if (r.winner === "do") return `sync race: DO won · ${r.doMs}ms vs spacetime ${r.stSkipped ? "skipped" : r.stMs + "ms"}`;
+    if (r.winner === "spacetime") return `sync race: SpacetimeDB won · ${r.stMs}ms vs DO ${r.doMs}ms`;
+    if (r.winner === "none") return `sync race: both failed (do: ${r.doErr || "?"} / st: ${r.stErr || "skipped"})`;
+    return "sync: …";
+  }
+
+  function badge() {
+    const s = document.createElement("span");
+    s.id = "syncRace";
+    s.className = "meta";
+    s.textContent = raceText(state.last);
+    return s;
+  }
+  function subscribe(uuid, onState) {
+    unsubscribe();
+    state.wsUuid = uuid;
+    state.onState = onState;
+    log(`subscribe uuid=${String(uuid).slice(0, 8)} via ${base()} — WS try + GET poll every ${POLL_MS}ms`);
+    startPoll(uuid, onState); // always on: plain GETs carry realtime even with zero WS
+    const url = base().replace(/^http/, "ws") + "/api/sync/ws?uuid=" + encodeURIComponent(uuid);
+    try {
+      const ws = new WebSocket(url);
+      state.ws = ws;
+      ws.onopen = () => { state.wsOk = true; log("WS open — live push active"); try { ws.send(JSON.stringify({ t: "hello", uuid })); } catch (_) {} };
+      ws.onmessage = (ev) => {
+        try {
+          const m = JSON.parse(ev.data);
+          if (m.t === "state") {
+            if (m.doc && (m.seq || 0) > state.seq) { state.seq = m.seq || 0; log(`WS state seq=${m.seq}`); onState(m); }
+            else if (!m.doc) { log(`WS state seq=${m.seq} (empty)`); }
+          } else if (m.t === "ack") { log(`WS ack seq=${m.seq}`); }
+        } catch (_) {}
+      };
+      ws.onclose = () => { state.wsOk = false; log("WS closed — GET poll carries on"); };
+      ws.onerror = () => { state.wsOk = false; log("WS error — GET poll carries on"); try { ws.close(); } catch (_) {} };
+    } catch (e) {
+      log("WS unavailable (" + String((e && e.message) || e).slice(0, 80) + ") — GET poll only");
+    }
+  }
+
+  function startPoll(uuid, onState) {
+    stopPoll();
+    let fails = 0;
+    const tick = async () => {
+      try {
+        const r = await fetch(base() + "/api/sync/state?uuid=" + encodeURIComponent(uuid), { cache: "no-store" });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        const j = await r.json();
+        if (j.ok && j.doc && (j.seq || 0) > state.seq) { state.seq = j.seq; log(`GET poll: new seq=${j.seq} — applying`); onState(j); }
+        else if (j.ok) { /* same seq: quiet, still alive */ }
+        if (fails) { log("GET poll recovered"); fails = 0; }
+      } catch (e) {
+        fails++;
+        if (fails <= 3 || fails % 5 === 0) log(`GET poll fail x${fails}: ${String((e && e.message) || e).slice(0, 100)}`);
+      }
+    };
+    tick();
+    state.pollT = setInterval(tick, POLL_MS);
+    log(`GET poll started (${POLL_MS}ms)`);
+  }
+  function stopPoll() { if (state.pollT) { clearInterval(state.pollT); state.pollT = null; } }
+  // tryLive: one honest realtime attempt. Tries WS open AND a plain GET ping in
+  // parallel, each with a timeout. Resolves {live, wsOk, pollOk, wsMs, pollMs, reason}.
+  // Callers show green CSS on live=true, or a sorry message on false.
+  async function tryLive(uuid, timeoutMs) {
+    const tmo = timeoutMs || 6000;
+    const b = base();
+    log(`live try → ${b} (timeout ${tmo}ms)`);
+    const withTimeout = (p, label) => Promise.race([
+      p,
+      new Promise((_, rej) => setTimeout(() => rej(new Error(label + " timeout")), tmo)),
+    ]);
+    const wsAttempt = new Promise((resolve) => {
+      const t0 = performance.now();
+      let done = false;
+      const finish = (ok, info) => {
+        if (done) return; done = true;
+        resolve({ ok, ms: Math.round(performance.now() - t0), info });
+      };
+      try {
+        const ws = new WebSocket(b.replace(/^http/, "ws") + "/api/sync/ws?uuid=" + encodeURIComponent(uuid || "default"));
+        const timer = setTimeout(() => { try { ws.close(); } catch (_) {} finish(false, "no open in " + tmo + "ms"); }, tmo);
+        ws.onopen = () => { clearTimeout(timer); log("live try: WS open"); try { ws.close(); } catch (_) {} finish(true, "open"); };
+        ws.onerror = () => { clearTimeout(timer); finish(false, "socket error"); };
+        ws.onclose = (ev) => { clearTimeout(timer); finish(false, "closed code=" + (ev && ev.code)); };
+      } catch (e) { finish(false, String((e && e.message) || e).slice(0, 100)); }
+    });
+    const pollAttempt = (async () => {
+      const t0 = performance.now();
+      try {
+        const r = await withTimeout(fetch(b + "/api/sync/ping", { cache: "no-store" }), "ping");
+        if (!r.ok) return { ok: false, ms: Math.round(performance.now() - t0), info: "HTTP " + r.status };
+        return { ok: true, ms: Math.round(performance.now() - t0), info: "pong" };
+      } catch (e) { return { ok: false, ms: Math.round(performance.now() - t0), info: String((e && e.message) || e).slice(0, 100) }; }
+    })();
+    const [ws, poll] = await Promise.all([wsAttempt, pollAttempt]);
+    const live = ws.ok || poll.ok;
+    const reason = live
+      ? (ws.ok && poll.ok ? `WS ${ws.ms}ms · poll ${poll.ms}ms` : ws.ok ? `WS ${ws.ms}ms (poll failed: ${poll.info})` : `poll ${poll.ms}ms (WS failed: ${ws.info})`)
+      : `WS: ${ws.info} · poll: ${poll.info}`;
+    log(`live try: ${live ? "LIVE" : "not live"} — ${reason}`);
+    return { live, wsOk: ws.ok, pollOk: poll.ok, wsMs: ws.ms, pollMs: poll.ms, reason, host: b };
+  }
+  function unsubscribe() {
+    try { if (state.ws) state.ws.close(); } catch (_) {}
+    state.ws = null; state.wsOk = false; stopPoll();
+  }
+
+  g.CVMSync = { racePublish, subscribe, unsubscribe, badge, raceText, tryLive,
+    normalizeSyncHost, setSyncHost, getSyncHost: () => base(), storedSyncHost,
+    onLog: (fn) => { state.onLog = fn; try { if (fn) fn(null, state.logs.slice()); } catch (_) {} },
+    logs: () => state.logs.slice(), mode: () => (state.wsOk ? "ws+poll" : (state.pollT ? "poll" : "idle")),
+    POLL_MS,
+    get last() { return state.last; } };
+})(typeof window !== "undefined" ? window : globalThis);

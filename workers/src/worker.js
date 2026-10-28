@@ -4,9 +4,15 @@
 // Worker serves the whole app from one isolate pool (uptime: no single box).
 
 import { agentRecommend, agentImprove, agentInvestigate, agentZero, agentDuel, DEFAULT_ALLOW } from "./agent.js";
-import indexHtml from "../../index.html";
-import shotHtml from "../../0shot.html";
-import iconSvg from "../../icon.svg";
+import { GraphSync } from "./sync.js";
+export { GraphSync };
+import indexHtml from "../../pwa/index.html";
+import shotHtml from "../../pwa/0shot.html";
+import viewerHtml from "../../pwa/viewer.html";
+import syncClientTxt from "../../pwa/sync-client.txt";
+import stylesTxt from "../../pwa/styles.txt";
+import manifestWm from "../../pwa/manifest.txt";
+import iconSvg from "../../pwa/icon.svg";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS entities (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, kind TEXT, attrs TEXT, embedding TEXT, user TEXT);
@@ -22,6 +28,9 @@ CREATE TABLE IF NOT EXISTS graph_versions (uuid TEXT NOT NULL, version INTEGER N
 CREATE INDEX IF NOT EXISTS idx_graph_versions ON graph_versions(uuid, version);
 CREATE TABLE IF NOT EXISTS page_versions (node TEXT NOT NULL, user TEXT NOT NULL DEFAULT '', version INTEGER NOT NULL, title TEXT, kind TEXT, body TEXT, message TEXT, created REAL, PRIMARY KEY (node, user, version));
 CREATE INDEX IF NOT EXISTS idx_page_versions ON page_versions(node, user, version);
+CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);
+CREATE TABLE IF NOT EXISTS feature_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, detail TEXT DEFAULT '', contact TEXT DEFAULT '', votes INTEGER NOT NULL DEFAULT 1, status TEXT DEFAULT 'open', created REAL);
+CREATE TABLE IF NOT EXISTS feature_votes (req_id INTEGER NOT NULL, voter TEXT NOT NULL, created REAL, PRIMARY KEY (req_id, voter));
 `;
 
 const SEEDS = {
@@ -170,8 +179,14 @@ async function defineConcept(env, concept) {
   await cacheSet(env, key, res);
   return res;
 }
-async function buildNetwork(env, text, user) {
-  const tpl = (await env.DB.prepare("SELECT template FROM prompts WHERE name='entity_extract'").first())?.template || "";
+async function buildNetwork(env, text, user, schema) {
+  let tpl = (await env.DB.prepare("SELECT template FROM prompts WHERE name='entity_extract'").first())?.template || "";
+  if (schema && (schema.types || schema.constraints)) {
+    tpl += "\n\n[STRUCTURED MODE — extract ONLY entities whose kind is one of: "
+      + (schema.types || "(any, but keep kinds tight)")
+      + ". Additional constraints: " + (schema.constraints || "none")
+      + ". Skip anything that does not fit. Put provided constraints in attrs.]";
+  }
   const ai = await aiChat(env, tpl.replace("{text}", text));
   const obj = parseLooseJson(ai);
   let nodes = obj?.nodes || [], edges = obj?.edges || [];
@@ -331,6 +346,13 @@ export default {
     // ---- static ----
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) return html(indexHtml);
     if (req.method === "GET" && url.pathname === "/0shot.html") return html(shotHtml);
+    if (req.method === "GET" && (url.pathname === "/viewer" || url.pathname === "/viewer.html")) return html(viewerHtml);
+    if (req.method === "GET" && (url.pathname === "/sync-client.js" || url.pathname === "/sync-client.txt"))
+      return new Response(syncClientTxt, { headers: { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "public, max-age=300" } });
+    if (req.method === "GET" && (url.pathname === "/styles.css" || url.pathname === "/styles.txt"))
+      return new Response(stylesTxt, { headers: { "Content-Type": "text/css; charset=utf-8", "Cache-Control": "public, max-age=300" } });
+    if (req.method === "GET" && url.pathname === "/manifest.webmanifest")
+      return new Response(manifestWm, { headers: { "Content-Type": "application/manifest+json; charset=utf-8", "Cache-Control": "public, max-age=300" } });
     if (req.method === "GET" && (url.pathname === "/icon.svg" || url.pathname === "/favicon.ico"))
       return new Response(iconSvg, { headers: { "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=86400" } });
     if (req.method === "GET" && url.pathname === "/health") return json({ status: "ok", runtime: "cloudflare-workers" });
@@ -454,6 +476,60 @@ export default {
       const r = await env.DB.prepare("SELECT id,role,text,created FROM node_msgs WHERE node=? AND user=? ORDER BY id ASC LIMIT ?").bind(cnode, url.searchParams.get("user") || "", limit).all();
       return json({ msgs: (r.results || []).map((m) => ({ id: m.id, role: m.role, text: m.text, created: m.created })) });
     }
+    if (req.method === "GET" && url.pathname === "/api/features") {
+      const lim = Math.min(200, Math.max(1, parseInt(url.searchParams.get("limit") || "100", 10) || 100));
+      const r = await env.DB.prepare("SELECT id,title,detail,contact,votes,status,created FROM feature_requests ORDER BY votes DESC, id DESC LIMIT ?").bind(lim).all();
+      return json({ ok: true, requests: r.results || [], email: "edge has no SMTP — votes stored, wire a mail webhook for notify" });
+    }
+
+    // ---- redundant sync servers: DO (#1, realtime) + SpacetimeDB (#2, durable) ----
+    // Clients race both and show which acked first.
+    if (url.pathname === "/api/sync/ws" || url.pathname === "/api/sync/state" || url.pathname === "/api/sync/publish") {
+      if (!env.GRAPH_SYNC) return json({ ok: false, error: "GRAPH_SYNC binding missing (add [[durable_objects]] to wrangler.toml)" }, 500);
+      const uuid = url.pathname === "/api/sync/publish"
+        ? "" // uuid comes from POST body; route by a temp id then re-route inside DO
+        : (url.searchParams.get("uuid") || "default");
+      // For publish-by-POST we still need a DO id: peek body uuid without consuming for DO fetch.
+      // Simplest: always route via the uuid (query or body) to the per-graph stub.
+      let target = uuid;
+      if (url.pathname === "/api/sync/publish" && req.method === "POST") {
+        try {
+          const peek = await req.clone().json();
+          target = (peek.uuid || "default").trim() || "default";
+        } catch (_) { target = "default"; }
+      }
+      const id = env.GRAPH_SYNC.idFromName("graph:" + target);
+      const stub = env.GRAPH_SYNC.get(id);
+      const fwd = new URL(req.url);
+      if (url.pathname === "/api/sync/ws") fwd.pathname = "/api/sync/ws";
+      else if (url.pathname === "/api/sync/state") fwd.pathname = "/api/sync/state";
+      else fwd.pathname = "/api/sync/publish";
+      return stub.fetch(new Request(fwd.toString(), req));
+    }
+    if (url.pathname === "/api/spacetime/publish") {
+      // Real proxy: browser -> Worker -> SpacetimeDB reducer. Creds stay server-side.
+      if (req.method !== "POST") return json({ ok: false, error: "POST only" }, 405);
+      const host = (env.SPACETIME_HOST || "").replace(/\/$/, "");
+      if (!host) return json({ ok: false, skipped: true, via: "spacetime", reason: "SPACETIME_HOST not configured" });
+      let body = {};
+      try { body = await req.json(); } catch (_) {}
+      const db = env.SPACETIME_DB || "osintdb";
+      try {
+        const r = await fetch(`${host}/v1/database/${db}/call/ingest_snapshot`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json",
+            ...(env.SPACETIME_TOKEN ? { Authorization: "Bearer " + env.SPACETIME_TOKEN } : {}) },
+          body: JSON.stringify({ snapId: String(body.uuid || ""), data: JSON.stringify(body.doc || {}).slice(0, 20000), user: "" }),
+          signal: AbortSignal.timeout(15000),
+        });
+        const txt = await r.text();
+        if (!r.ok) return json({ ok: false, via: "spacetime", error: txt.slice(0, 200), host });
+        return json({ ok: true, via: "spacetime", host, upstream: txt.slice(0, 200) });
+      } catch (e) {
+        return json({ ok: false, via: "spacetime", error: String(e).slice(0, 200), host });
+      }
+    }
+    if (req.method === "GET" && url.pathname === "/api/sync/ping") return json({ ok: true, via: "do", at: Date.now() });
 
     // ---- POST ----
     if (req.method === "POST") {
@@ -472,7 +548,7 @@ export default {
       if (url.pathname === "/build") {
         if (!checkAuth(req, env)) return json({ error: "unauthorized: bad/missing token" }, 401);
         const user = await getUser(env, body, req);
-        return json(await buildNetwork(env, body.text || "", user));
+        return json(await buildNetwork(env, body.text || "", user, body.schema || null));
       }
       if (url.pathname === "/define") {
         return json(await defineConcept(env, body.concept || ""));
@@ -649,6 +725,29 @@ export default {
         const now = Date.now() / 1000;
         const r = await env.DB.prepare("INSERT INTO node_msgs(node,user,role,text,created) VALUES(?,?,?,?,?)").bind(cnode, user, role, text, now).run();
         return json({ ok: true, msg: { id: Number(r.meta.last_row_id), role, text, created: now } });
+      }
+      if (url.pathname === "/api/features") {
+        const title = String(body.title || "").trim().slice(0, 200);
+        if (!title) return json({ ok: false, error: "title required" });
+        const now = Date.now() / 1000;
+        const r = await env.DB.prepare("INSERT INTO feature_requests(title,detail,contact,votes,status,created) VALUES(?,?,?,?,?,?)")
+          .bind(title, String(body.detail || "").slice(0, 4000), String(body.contact || body.username || "").slice(0, 200), 1, "open", now).run();
+        return json({ ok: true, id: Number(r.meta.last_row_id), votes: 1, email: { sent: false, reason: "smtp-not-configured-on-edge" } });
+      }
+      if (url.pathname === "/api/features/vote") {
+        const reqId = Number(body.id || 0);
+        if (!reqId) return json({ ok: false, error: "bad id" });
+        const voter = String(body.voter || body.username || req.headers.get("X-Username") || req.headers.get("CF-Connecting-IP") || "anon").slice(0, 120);
+        const row = await env.DB.prepare("SELECT id,votes FROM feature_requests WHERE id=?").bind(reqId).first();
+        if (!row) return json({ ok: false, error: "unknown request" });
+        try {
+          await env.DB.prepare("INSERT INTO feature_votes(req_id,voter,created) VALUES(?,?,?)").bind(reqId, voter, Date.now() / 1000).run();
+          await env.DB.prepare("UPDATE feature_requests SET votes=votes+1 WHERE id=?").bind(reqId).run();
+          const v = await env.DB.prepare("SELECT votes FROM feature_requests WHERE id=?").bind(reqId).first();
+          return json({ ok: true, id: reqId, votes: v.votes, duplicate: false });
+        } catch (_) {
+          return json({ ok: true, id: reqId, votes: row.votes, duplicate: true });
+        }
       }
       return new Response("not found", { status: 404 });
     }
