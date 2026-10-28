@@ -3222,40 +3222,70 @@
     <polygon points="11,26 19,26 17,38 9,36" fill="rgba(52,211,153,.85)"/>
     <polygon points="12,27 16,27 15,34 11,33" fill="rgba(167,243,208,.9)"/>
   </svg>
-  <svg viewBox="0 0 120 120" aria-label="low poly cat">
-    <!-- tail (steerable: #tailG rotates to point at the tour step) -->
+  <svg viewBox="0 0 120 120" aria-label="low poly arcade cat">
+    <defs>
+      <linearGradient id="catSilver" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#cbd5e1"/><stop offset=".55" stop-color="#94a3b8"/><stop offset="1" stop-color="#64748b"/>
+      </linearGradient>
+      <linearGradient id="catBronze" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#f59e0b"/><stop offset="1" stop-color="#92400e"/>
+      </linearGradient>
+    </defs>
+    <ellipse cx="60" cy="116" rx="34" ry="4" fill="rgba(0,0,0,.45)"/>
+    <!-- segmented tail (steerable: #tailG rotates to point at the tour step) -->
     <g id="tailG">
-    <polygon class="tail" points="96,96 116,88 112,102 94,104" fill="#475569"/>
-    <polygon class="tail" points="112,102 116,88 118,94" fill="#64748b"/>
+      <polygon class="tail" points="90,100 104,88 108,94 96,106" fill="#7d8aa0"/>
+      <polygon class="tail" points="104,88 114,78 117,85 108,94" fill="#94a3b8"/>
+      <polygon class="tail" points="114,78 119,66 121,74 117,85" fill="url(#catBronze)"/>
     </g>
-    <!-- body -->
-    <polygon points="34,118 36,84 60,74 86,84 88,118" fill="#334155"/>
-    <polygon points="60,74 86,84 88,118 62,118" fill="#3b4d63"/>
-    <polygon points="48,118 50,94 70,94 72,118" fill="#475569"/>
-    <!-- head -->
-    <polygon points="60,12 26,34 30,74 60,90 90,74 94,34" fill="#475569"/>
-    <polygon points="60,12 94,34 90,74 60,90" fill="#52647a"/>
-    <polygon points="60,12 26,34 30,74 60,90" fill="#3f4f64"/>
-    <!-- ears -->
-    <polygon points="28,36 20,8 48,24" fill="#475569"/>
-    <polygon points="92,36 100,8 72,24" fill="#52647a"/>
-    <polygon points="30,30 26,14 42,24" fill="#f9a8d4"/>
-    <polygon points="90,30 94,14 78,24" fill="#f9a8d4"/>
-    <!-- eyes -->
-    <polygon class="eye" points="40,50 48,50 44,60" fill="#fbbf24"/>
-    <polygon class="eye" points="72,50 80,50 76,60" fill="#fbbf24"/>
-    <circle class="eye" cx="44" cy="53" r="2.4" fill="#0b1120"/>
-    <circle class="eye" cx="76" cy="53" r="2.4" fill="#0b1120"/>
-    <!-- nose + GREEN mouth (talks) -->
-    <polygon points="56,66 64,66 60,71" fill="#fb7185"/>
-    <g id="catMouth">
-      <polygon points="60,71 52,78 56,84 60,79 64,84 68,78" fill="#34d399"/>
+    <g id="catBodyG">
+      <!-- body: faceted silver, bronze chest plate, cyan side shard -->
+      <polygon points="34,118 36,84 60,74 62,118" fill="#8fa1b8"/>
+      <polygon points="60,74 86,84 88,118 62,118" fill="#6d7f99"/>
+      <polygon points="36,84 60,74 54,96 40,104" fill="#aebfd6"/>
+      <polygon points="86,84 88,118 72,104 66,92" fill="#5b6c84"/>
+      <polygon points="50,94 70,94 74,118 46,118" fill="url(#catBronze)" opacity=".9"/>
+      <polygon points="54,98 66,98 60,110" fill="#38bdf8" opacity=".85"/>
+      <!-- paws -->
+      <polygon class="paw pawL" points="38,118 44,106 52,118" fill="#cbd5e1"/>
+      <polygon class="paw pawR" points="68,118 76,106 82,118" fill="#94a3b8"/>
     </g>
-    <!-- whiskers -->
-    <line x1="30" y1="66" x2="12" y2="62" stroke="#94a3b8" stroke-width="1.4"/>
-    <line x1="30" y1="72" x2="13" y2="74" stroke="#94a3b8" stroke-width="1.4"/>
-    <line x1="90" y1="66" x2="108" y2="62" stroke="#94a3b8" stroke-width="1.4"/>
-    <line x1="90" y1="72" x2="107" y2="74" stroke="#94a3b8" stroke-width="1.4"/>
+    <g id="catHead">
+      <!-- ears: outer facet + bronze tip + pink inner -->
+      <polygon class="ear earL" points="28,36 18,4 50,22" fill="#8fa1b8"/>
+      <polygon class="ear earR" points="92,36 102,4 70,22" fill="#7d8ea8"/>
+      <polygon points="18,4 30,10 50,22" fill="url(#catBronze)"/>
+      <polygon points="102,4 90,10 70,22" fill="url(#catBronze)"/>
+      <polygon points="30,29 25,13 42,23" fill="#f9a8d4"/>
+      <polygon points="90,29 95,13 78,23" fill="#f9a8d4"/>
+      <!-- head facets -->
+      <polygon points="60,12 26,34 30,74 60,90" fill="#9db0c7"/>
+      <polygon points="60,12 94,34 90,74 60,90" fill="#7d8ea8"/>
+      <polygon points="60,12 44,40 60,52 76,40" fill="url(#catSilver)"/>
+      <polygon points="30,74 44,40 60,52 60,90" fill="#8799b1"/>
+      <polygon points="90,74 76,40 60,52 60,90" fill="#6d7f99"/>
+      <polygon points="26,34 44,40 30,74" fill="#c3d2e4" opacity=".7"/>
+      <polygon points="94,34 76,40 90,74" fill="#55677f" opacity=".8"/>
+      <!-- forehead arcade gem -->
+      <polygon id="catGem" points="60,20 66,28 60,36 54,28" fill="#34d399"/>
+      <polygon points="60,20 66,28 60,28" fill="#a7f3d0"/>
+      <!-- eyes -->
+      <polygon class="eye" points="39,48 49,48 44,59" fill="#fbbf24"/>
+      <polygon class="eye" points="71,48 81,48 76,59" fill="#fbbf24"/>
+      <circle class="eye" cx="44" cy="52" r="2.4" fill="#0b1120"/>
+      <circle class="eye" cx="76" cy="52" r="2.4" fill="#0b1120"/>
+      <!-- nose + GREEN mouth (talks) -->
+      <polygon points="56,65 64,65 60,70" fill="#fb7185"/>
+      <g id="catMouth">
+        <polygon points="60,70 52,77 56,84 60,79 64,84 68,77" fill="#34d399"/>
+        <polygon points="60,70 60,79 56,84 52,77" fill="#10b981"/>
+      </g>
+      <!-- whiskers -->
+      <g class="whiskers" stroke="#e2e8f0" stroke-width="1.3" opacity=".75">
+        <line x1="30" y1="64" x2="11" y2="59"/><line x1="30" y1="71" x2="12" y2="73"/>
+        <line x1="90" y1="64" x2="109" y2="59"/><line x1="90" y1="71" x2="108" y2="73"/>
+      </g>
+    </g>
   </svg>
 </div>
 <div id="aiTerm"><div id="aiTermHead"><span id="aiTermDot"></span><span>AI LOG</span><span id="aiTermCount" style="opacity:.8">0 events</span><span id="aiTermTools"><input id="aiTermFilter" placeholder="filter history…" title="filter log lines"/><button id="aiTermCopy" title="copy filtered log"><i class="fa-solid fa-copy"></i></button><button id="aiTermClear" title="clear log"><i class="fa-solid fa-xmark"></i></button></span><span id="aiTermToggleLbl" style="opacity:.7">▲▼ toggle</span><span id="aiTermGrip" title="drag to resize (double-click resets)"><span></span></span></div><div id="aiTermBody"></div><div id="aiTermCmd"><span style="color:#38bdf8">❯</span><textarea id="aiTermInput" rows="1" placeholder="browser shell: search <q> · fetch <url> · echo · .help · bash falls back to /exec (Enter runs, Shift+Enter newline, Esc clears)" autocomplete="off" spellcheck="false"></textarea><button id="aiTermSend">send</button></div></div>

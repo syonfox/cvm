@@ -233,21 +233,41 @@
     border-radius:12px 12px 4px 12px;padding:6px 10px;font-size:11px;max-width:210px;
     font-family:Inter,system-ui,sans-serif;backdrop-filter:blur(8px);box-shadow:0 8px 24px rgba(0,0,0,.45)}
   #catBubble b{color:#34d399}
-  #catPal svg{width:104px;height:104px;overflow:visible;filter:drop-shadow(0 8px 18px rgba(0,0,0,.5))}
+  #catPal svg{width:116px;height:116px;overflow:visible;filter:drop-shadow(0 10px 20px rgba(0,0,0,.55)) drop-shadow(0 0 10px rgba(245,158,11,.12))}
   #catPal.idle svg{animation:catBob 3.2s ease-in-out infinite}
   #catPal.thinking svg{animation:catBounce .55s ease-in-out infinite}
   #catPal .eye{transform-box:fill-box;transform-origin:center;animation:catBlink 5.5s infinite}
   #catPal.thinking .tail{animation:catWag .4s ease-in-out infinite}
-  #catPal .tail{transform-box:fill-box;transform-origin:80% 90%}
+  #catPal .tail{transform-box:fill-box;transform-origin:80% 90%;animation:catWagIdle 2.8s ease-in-out infinite}
   #catMouth{transform-box:fill-box;transform-origin:50% 0%}
   #catPal.thinking #catMouth,#catPal.talking #catMouth{animation:catChatter .32s ease-in-out infinite}
   #catPal.done #catMouth{animation:catSmile .5s ease-in-out 2}
-  @keyframes catBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
-  @keyframes catBounce{0%,100%{transform:translateY(0) rotate(-1.5deg)}50%{transform:translateY(-9px) rotate(1.5deg)}}
+  /* faceted-part motion: squash body, tilt head, twitch ears, tap paw, pulse gem */
+  #catBodyG{transform-box:fill-box;transform-origin:50% 100%;animation:catBreathe 3.2s ease-in-out infinite}
+  #catHead{transform-box:fill-box;transform-origin:50% 85%;animation:catHeadTilt 6s ease-in-out infinite}
+  #catPal.thinking #catHead{animation:catHeadTilt .55s ease-in-out infinite}
+  #catPal .ear{transform-box:fill-box;transform-origin:50% 90%}
+  #catPal .earL{animation:catEarTwitch 7s ease-in-out infinite}
+  #catPal .earR{animation:catEarTwitch 7s ease-in-out 3.4s infinite}
+  #catPal.thinking .pawL{animation:catPawTap .55s ease-in-out infinite}
+  .paw{transform-box:fill-box;transform-origin:50% 100%}
+  #catGem{transform-box:fill-box;transform-origin:center;animation:catGemPulse 2.4s ease-in-out infinite}
+  #catPal.done svg{filter:drop-shadow(0 10px 20px rgba(0,0,0,.55)) drop-shadow(0 0 18px rgba(52,211,153,.65))}
+  #catPal.err svg{animation:catShake .4s ease-in-out 2}
+  @keyframes catBob{0%,100%{transform:translateY(0) scale(1,1)}50%{transform:translateY(-5px) scale(.99,1.01)}}
+  @keyframes catBounce{0%,100%{transform:translateY(0) rotate(-1.5deg) scale(1.02,.96)}50%{transform:translateY(-9px) rotate(1.5deg) scale(.98,1.03)}}
+  @keyframes catBreathe{0%,100%{transform:scale(1,1)}50%{transform:scale(1.015,.985)}}
+  @keyframes catHeadTilt{0%,88%,100%{transform:rotate(0)}92%{transform:rotate(-3deg)}96%{transform:rotate(2.5deg)}}
+  @keyframes catEarTwitch{0%,90%,100%{transform:rotate(0)}93%{transform:rotate(-7deg)}96%{transform:rotate(4deg)}}
+  @keyframes catPawTap{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+  @keyframes catGemPulse{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.18);opacity:1}}
+  @keyframes catShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px) rotate(-2deg)}75%{transform:translateX(4px) rotate(2deg)}}
   @keyframes catBlink{0%,93%,100%{transform:scaleY(1)}95.5%{transform:scaleY(.08)}}
   @keyframes catChatter{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}
   @keyframes catSmile{0%,100%{transform:scaleY(.4)}50%{transform:scaleY(1)}}
   @keyframes catWag{0%,100%{transform:rotate(-14deg)}50%{transform:rotate(16deg)}}
+  @keyframes catWagIdle{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(6deg)}}
+  @media (prefers-reduced-motion:reduce){#catPal svg,#catPal *,#catBodyG,#catHead,#catGem{animation:none !important}}
   #catPal.done #catBubble{border-color:rgba(52,211,153,.8);box-shadow:0 0 18px rgba(52,211,153,.3)}
   #catPal.err #catBubble{border-color:rgba(251,113,133,.7)}
 
@@ -293,9 +313,25 @@ input.np-field{font-size:12px}
 .btn-inject{background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.4);color:var(--emerald);border-radius:8px;padding:8px;font-weight:800;cursor:pointer}
 .btn-refine{background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.4);color:var(--violet);border-radius:8px;padding:8px;font-weight:800;cursor:pointer}
 
-/* ---- intro.js guided tour: pimped dark-glass theme ---- */
-:root{ --tour-accent:#34d399; --tour-hi:#7c3aed; }
-.introjs-tooltip{background:rgba(8,12,24,.97);border:1px solid rgba(52,211,153,.45);color:var(--text);
+/* ---- buttons: global .secondary base (bare uses outside .tool-row/.seg
+   were falling back to unstyled native buttons) ---- */
+button.secondary{background:linear-gradient(180deg,rgba(255,255,255,.09),rgba(255,255,255,.04));
+  border:1px solid var(--border);color:var(--text);border-radius:10px;padding:8px 12px;
+  font-size:12.5px;font-family:inherit;cursor:pointer;
+  box-shadow:0 3px 0 rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.12);
+  transition:transform .08s ease-out,box-shadow .08s ease-out,filter .15s,border-color .15s}
+button.secondary:hover{filter:brightness(1.18);border-color:rgba(148,163,184,.55)}
+button.secondary:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.45)}
+button.secondary:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.arcade-mini{border-radius:50%;aspect-ratio:1/1;padding:.7em;display:inline-flex;align-items:center;justify-content:center;
+  background:radial-gradient(circle at 35% 28%,rgba(255,255,255,.5) 0 8%,#64748b 42%,#1e293b 82%);
+  border:3px solid #151d31;color:#fff;cursor:pointer;
+  box-shadow:0 5px 0 #05080f,0 8px 16px rgba(0,0,0,.5),inset 0 -4px 8px rgba(0,0,0,.45)}
+.arcade-mini:active{transform:translateY(3px);box-shadow:0 1px 0 #05080f}
+
+/* ---- intro.js guided tour: smoky silver/bronze, darkened ---- */
+:root{ --tour-accent:#d97706; --tour-hi:#94a3b8; }
+.introjs-tooltip{background:linear-gradient(160deg,rgba(43,38,33,.97),rgba(16,14,12,.98));border:1px solid rgba(217,119,6,.55);color:var(--text);
   border-radius:16px;padding:6px;box-shadow:0 24px 80px rgba(0,0,0,.75),0 0 32px rgba(52,211,153,.15);
   min-width:300px;max-width:380px;font-family:Inter,system-ui,sans-serif}
 .introjs-tooltip-title{font-size:15px;font-weight:800;color:#fff;margin:10px 12px 2px}
@@ -303,10 +339,11 @@ input.np-field{font-size:12px}
 .introjs-tooltiptext b,.introjs-tooltiptext code{color:var(--tour-accent)}
 .introjs-button{border-radius:10px !important;font-weight:700 !important;font-size:12.5px !important;
   padding:7px 14px !important;text-shadow:none !important}
-.introjs-nextbutton{background:linear-gradient(135deg,#059669,#0284c7) !important;color:#fff !important;border:none !important}
-.introjs-prevbutton,.introjs-skipbutton{background:rgba(255,255,255,.07) !important;color:#cbd5e1 !important;border:1px solid var(--border) !important}
+.introjs-nextbutton{background:linear-gradient(180deg,#b45309,#92400e) !important;color:#fff !important;border:1px solid rgba(245,158,11,.6) !important;box-shadow:0 3px 0 #451a03 !important}
+.introjs-nextbutton:active{transform:translateY(2px);box-shadow:0 1px 0 #451a03 !important}
+.introjs-prevbutton,.introjs-skipbutton{background:linear-gradient(180deg,rgba(148,163,184,.22),rgba(71,85,105,.25)) !important;color:#e2e8f0 !important;border:1px solid rgba(148,163,184,.45) !important;box-shadow:0 3px 0 rgba(0,0,0,.5) !important}
 .introjs-disabled{opacity:.35 !important}
-.introjs-helperLayer{border-radius:14px;box-shadow:0 0 0 9999px rgba(2,6,16,.72),0 0 40px rgba(52,211,153,.35) !important;border:2px solid var(--tour-accent) !important}
+.introjs-helperLayer{border-radius:14px;box-shadow:0 0 0 9999px rgba(8,7,6,.82),0 0 40px rgba(217,119,6,.25) !important;border:2px solid var(--tour-accent) !important}
 .introjs-progressbar{background:linear-gradient(90deg,var(--tour-hi),var(--tour-accent)) !important}
 .introjs-bullets ul li a{background:rgba(255,255,255,.2) !important}
 .introjs-bullets ul li a.active{background:var(--tour-accent) !important}
@@ -353,8 +390,9 @@ input.np-field{font-size:12px}
 #cyTools button:active:not(:disabled){transform:translateY(4px);box-shadow:0 1px 0 #05080f,0 4px 10px rgba(0,0,0,.5),inset 0 -4px 8px rgba(0,0,0,.45)}
 #cyTools button.active-tool{background:radial-gradient(circle at 35% 28%,rgba(255,255,255,.5) 0 8%,#34d399 42%,#065f46 82%);box-shadow:0 6px 0 #05080f,0 0 16px rgba(52,211,153,.55)}
 #cyTools button.holding{background:radial-gradient(circle at 35% 28%,rgba(255,255,255,.5) 0 8%,#a78bfa 42%,#5b21b6 82%)}
-/* viewer + node-page icon buttons match */
-#ctrl button.arcade-mini,#nodePageTabs button{border-radius:50%}
+/* viewer icon buttons match; node-page tabs stay readable pills (was 50% = broken circles) */
+#nodePageTabs button{border-radius:10px;padding:7px 14px}
+#nodePageTabs button.on{background:linear-gradient(180deg,#b45309,#92400e);border-color:rgba(245,158,11,.6);color:#fff;box-shadow:0 3px 0 #451a03}
 /* text buttons: cabinet press + arcade hover expand */
 .tool-row .secondary,#layerFoot button,.feat-vote{transition:transform .1s ease-out,box-shadow .1s ease-out,filter .15s;box-shadow:0 3px 0 rgba(0,0,0,.45)}
 .tool-row .secondary:hover,#layerFoot button:hover,.feat-vote:hover{transform:scale(1.06);filter:brightness(1.15)}
