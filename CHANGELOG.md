@@ -60,3 +60,16 @@ reverted on its own (`git revert <that commit>`) without touching this work.
   live field chips, step indicators that light up, steps 3-4 disabled
   until a table exists, sort dropdown rebuilt from real table fields,
   renaming the table re-arms step 2. `/build` receives the description too.
+
+## Repo cleanup: one entry point + Node migration analysis (2026-10-28)
+
+- `./cvm` is now THE entry point (setup/dev/py/check/deploy/stop/status/logs);
+  `start.sh`/`deploy.sh` are back-compat shims, `kill_ports.sh` removed
+  (folded into `./cvm stop`). Recommended env: Debian 13, Node 20+.
+- README rewritten human-first (5-minute quickstart, runtime choice table);
+  detail moved to `docs/` (architecture, deploy, selfhosting, spacetimedb);
+  stale `GETTING_STARTED.md` merged into README and deleted.
+- `docs/migration-node.md`: measured Python→Node/Cloudflare analysis —
+  Worker already serves 39/41 routes; Python-only = /exec sandbox + SMTP,
+  both extractable to a small HTTP tool sidecar Node calls. Plan + risks.
+- Fixed `Dockerfile` (broken since the pwa/ move) and stale doc references.

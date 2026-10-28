@@ -34,7 +34,7 @@ AI_BASE_URL = "https://api.meta.ai/v1"
 AI_MODEL = "muse-spark-1.3"
 # MODEL_API_KEY is a secret: `wrangler secret put MODEL_API_KEY` (never in code).
 # Local dev uses workers/.dev.vars instead (auto-loaded by `wrangler dev`);
-# generate it from the repo-root .env with:  bash start.sh edge
+# generate it from the repo-root .env with:  ./cvm setup
 # Sync server #2 (SpacetimeDB): publish path for POST /api/spacetime/publish.
 # Set host here (or leave unset = race reports "spacetime skipped", DO carries sync).
 SPACETIME_HOST = "https://maincloud.spacetimedb.com"

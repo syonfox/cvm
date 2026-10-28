@@ -84,7 +84,7 @@ Notes:
   `EXEC_MODE=ssh` to a locked-down sibling container. Never `local` in prod.
 - Or keep the current `cvm.service` (systemd) + system docker; same env.
 - Put Cloudflare in front: proxied DNS (5 min) or `cloudflared` Tunnel (no
-  open ports) — see `DEPLOY.md` §B. Tunnel is the recommended demo link.
+  open ports) — see `docs/deploy.md` §B. Tunnel is the recommended demo link.
 
 ## 4. SpacetimeDB self-hosted for 800+ GB (slowstation archive box)
 
