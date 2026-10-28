@@ -24,6 +24,29 @@
   .inputbar button { background:linear-gradient(135deg,#0284c7,#7c3aed); color:#fff; border:none; border-radius:10px; padding:0 22px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:8px; transition:transform .15s, box-shadow .15s; }
   .inputbar button:hover { transform:translateY(-1px); box-shadow:0 6px 24px rgba(56,189,248,.35); }
   .inputbar button:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+  .inputbar.hero { flex-direction:column; align-items:stretch; }
+  .hero-row { display:flex; gap:12px; align-items:stretch; width:100%; }
+  .hero-row #q { flex:1; min-height:88px; font-size:16px; line-height:1.5; border:1px solid rgba(56,189,248,.35); border-radius:12px; animation:heroBreathe 3.4s ease-in-out infinite; }
+  @keyframes heroBreathe { 0%,100% { box-shadow:0 0 0 rgba(56,189,248,0); } 50% { box-shadow:0 0 24px rgba(56,189,248,.30); } }
+  .hero-row #q:focus { outline:none; border-color:#38bdf8; box-shadow:0 0 0 3px rgba(56,189,248,.18),0 0 34px rgba(56,189,248,.38); animation:none; }
+  .hero-row #go { position:relative; overflow:hidden; font-size:15px; padding:0 32px; }
+  .hero-row #go::after { content:""; position:absolute; top:0; left:-60%; width:42%; height:100%; background:linear-gradient(100deg,transparent,rgba(255,255,255,.5),transparent); transform:skewX(-20deg); animation:goSheen 3s ease-in-out infinite; pointer-events:none; }
+  @keyframes goSheen { 0% { left:-60%; } 55%,100% { left:170%; } }
+  .tool-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; width:100%; }
+  #profileWrap { position:relative; }
+  #profilePill { width:38px; height:38px; border-radius:50%; border:2px solid transparent; background:linear-gradient(#0b1226,#0b1226) padding-box,linear-gradient(135deg,#38bdf8,#a78bfa) border-box; color:var(--text); cursor:pointer; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:15px; }
+  #profilePill:hover { box-shadow:0 0 16px rgba(56,189,248,.5); transform:scale(1.06); }
+  #profileDot { position:absolute; bottom:1px; right:1px; width:11px; height:11px; border-radius:50%; background:#64748b; border:2px solid #0b1226; }
+  #profileDot.on { background:#34d399; box-shadow:0 0 8px #34d399; animation:dotPulse 2s ease-in-out infinite; }
+  @keyframes dotPulse { 0%,100% { box-shadow:0 0 4px #34d399; } 50% { box-shadow:0 0 12px #34d399; } }
+  #profilePop { display:none; position:absolute; top:46px; left:0; z-index:300; flex-direction:column; gap:8px; background:rgba(8,12,24,.97); border:1px solid var(--border); border-radius:14px; padding:12px; min-width:250px; box-shadow:0 18px 50px rgba(0,0,0,.6); }
+  #profilePop.open { display:flex; animation:popIn .18s cubic-bezier(.22,1.35,.36,1); }
+  @keyframes popIn { from { opacity:0; transform:translateY(-8px) scale(.96); } }
+  #promptDetails { font-size:12px; color:var(--dim); background:rgba(0,0,0,.35); border:1px solid var(--border); border-radius:10px; padding:6px 12px; }
+  #promptDetails summary { cursor:pointer; user-select:none; }
+  #promptDetails summary:hover { color:var(--text); }
+  #promptDetails .pd-body { display:flex; gap:10px; align-items:center; margin-top:8px; flex-wrap:wrap; color:var(--text); }
+  #promptDetails .pd-sep { width:1px; align-self:stretch; background:var(--border); }
   .inputbar button.secondary { background:rgba(255,255,255,.08); }
   .tab { padding:8px 14px; border-radius:10px; background:rgba(255,255,255,.04); border:1px solid var(--border); cursor:pointer; font-size:13px; display:flex; align-items:center; gap:8px; }
   .tab.active { background:linear-gradient(135deg,#0284c7,#7c3aed); border-color:transparent; }
@@ -136,18 +159,36 @@
     <div class="logo"><img src="/icon.svg" width="30" height="30" alt="CVM" /></div>
     <div><h1>CVM</h1><div class="sub">Cache Variable Memory. One question. AI builds the relational graph. Tabs accumulate. Export/import JSON & URL.</div></div>
   </header>
-  <div class="inputbar">
-    <select id="hostMode" style="background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:0 12px;font-size:12px;cursor:pointer;">
-      <option value="local">Local (localhost)</option>
-      <option value="lan">LAN</option>
-      <option value="wan">WAN (public)</option>
-    </select>
-    <input id="username" placeholder="username" style="background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:0 12px;font-size:12px;width:120px;" />
-    <input id="authtoken" type="password" placeholder="token (if required)" style="background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:0 12px;font-size:12px;width:140px;" />
-    <button id="loginBtn" class="secondary" title="login">Login</button>
-    <span id="loginState" style="font-size:12px;color:var(--dim);align-self:center"></span>
-    <textarea id="q" placeholder="Ask anything... AI will map relations. Each build adds a new tab."></textarea>
-    <button id="go"><span id="goText">Build Network</span><span id="goSpin" style="display:none" class="spinner"></span></button>
+  <div class="inputbar hero">
+    <div class="hero-row">
+      <textarea id="q" placeholder="Start a new graph… describe anything — AI maps the entities and relations."></textarea>
+      <button id="go"><span id="goText">Build Network</span><span id="goSpin" style="display:none" class="spinner"></span></button>
+    </div>
+    <div class="tool-row">
+    <div id="profileWrap">
+      <button id="profilePill" title="connection & login"><span id="profileAvatar"><i class="fa-solid fa-user-astronaut"></i></span><span id="profileDot"></span></button>
+      <div id="profilePop">
+        <select id="hostMode" style="background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:8px;font-size:12px;cursor:pointer;width:100%">
+          <option value="local">Local (localhost)</option>
+          <option value="lan">LAN</option>
+          <option value="wan">WAN (public)</option>
+        </select>
+        <input id="username" placeholder="username" style="background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:8px;font-size:12px;width:100%" />
+        <input id="authtoken" type="password" placeholder="token (if required)" style="background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:8px;font-size:12px;width:100%" />
+        <button id="loginBtn" class="secondary" title="login" style="width:100%">Login</button>
+        <span id="loginState" style="font-size:12px;color:var(--dim)"></span>
+      </div>
+    </div>
+    <details id="promptDetails"><summary title="model tools + improve prompt"><i class="fa-solid fa-sliders"></i> prompt details</summary>
+      <div class="pd-body">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;user-select:none"><input type="checkbox" id="toolWeb" checked style="width:18px;height:18px;accent-color:#a3e635" /> web</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;user-select:none"><input type="checkbox" id="toolExec" style="width:18px;height:18px;accent-color:#a3e635" /> exec</label>
+        <span class="pd-sep"></span>
+        <textarea id="improvePrompt" rows="2" placeholder="improve prompt…" style="flex:1;min-width:180px;background:rgba(0,0,0,.4);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:11px;"></textarea>
+        <button id="improveSave" class="secondary" style="padding:4px 8px">Save prompt</button>
+        <span id="improveSaveState"></span>
+      </div>
+    </details>
     <button id="exportBtn" class="secondary">Export JSON</button>
     <button id="importBtn" class="secondary">Import JSON</button>
     <button id="combineBtn" class="secondary">Combined View</button>
@@ -179,16 +220,10 @@
     <button id="settleBtn" class="secondary" title="re-run force layout"><i class="fa-solid fa-atom"></i> Settle</button>
     <button id="mergeBtn" class="secondary" title="merge JSON file into active tab">Merge JSON</button>
     <button id="improveNodeBtn" class="secondary" title="improve selected node + neighborhood">Improve node</button>
-    <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;user-select:none"><input type="checkbox" id="toolWeb" checked style="width:18px;height:18px;accent-color:#a3e635" /> web</label>
-    <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;user-select:none"><input type="checkbox" id="toolExec" style="width:18px;height:18px;accent-color:#a3e635" /> exec</label>
     <input id="improveInput" placeholder="improve: e.g. merge duplicates…" style="background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:0 12px;font-size:12px;width:200px;" />
     <button id="improveBtn" class="secondary">AI Improve</button>
-    <details id="improveCfg" style="font-size:12px;color:var(--dim);align-self:center"><summary style="cursor:pointer">prompt</summary>
-      <textarea id="improvePrompt" rows="6" style="width:320px;background:rgba(0,0,0,.4);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:11px;"></textarea><br/>
-      <button id="improveSave" class="secondary" style="padding:4px 8px">Save prompt</button>
-      <span id="improveSaveState"></span>
-    </details>
     <input id="fileInput" type="file" accept="application/json" style="display:none" />
+    </div>
   </div>
   <button id="layerToggle"><i class="fa-solid fa-bars"></i> Layers (<span id="layerCount">0</span>)</button>
   <div class="app">
@@ -807,6 +842,7 @@
         tab.version = j.version;
         try { paintGraphMeta(); } catch (_) {}
         try { save(); } catch (_) {}
+        try { const gb = document.getElementById("graphHist"); if (gb && gb.style.display !== "none") loadGraphHist(); } catch (_) {}
       }
     } catch (_) { /* offline: local state still has everything; will commit on next improvement */ }
   };
@@ -1081,11 +1117,9 @@
     aiTerm("sys", `share link copied (graph ${String(t.uuid).slice(0, 8)} · v${t.version || 0}) — whoever knows the id can view it`);
     prompt("Share this link — whoever knows the graph id can view it:", url);
   };
-  document.getElementById("histBtn").onclick = async () => {
+  const loadGraphHist = async () => {
     const t = tabs[activeTab], box = document.getElementById("graphHist");
     if (!t) return;
-    const open = box.style.display !== "none";
-    if (open) { box.style.display = "none"; return; }
     box.style.display = "flex";
     box.innerHTML = `<div style="font-size:11px;color:var(--dim)">loading history…</div>`;
     try {
@@ -1098,6 +1132,11 @@
         : `<div style="font-size:11px;color:var(--dim)">no commits yet — they land here on every improvement.</div>`;
       box.querySelectorAll("[data-restore]").forEach(btn => btn.onclick = () => restoreVersion(t, Number(btn.dataset.restore)));
     } catch (e) { box.innerHTML = `<div style="font-size:11px;color:var(--dim)">history offline</div>`; }
+  };
+  document.getElementById("histBtn").onclick = async () => {
+    const box = document.getElementById("graphHist");
+    if (box.style.display !== "none") { box.style.display = "none"; return; }
+    loadGraphHist();
   };
   const restoreVersion = async (t, v) => {
     try {
@@ -1172,10 +1211,19 @@
   toolExec.onchange=()=>localStorage.setItem("osint_tool_exec",toolExec.checked?"1":"0");
   const aiTools=()=>({web:toolWeb.checked,exec:toolExec.checked});
   const aiHeaders=()=>({"Content-Type":"application/json","X-Auth-Token":localStorage.getItem("osint_token")||""});
+  const paintPill=()=>{ const u=(document.getElementById("username").value||localStorage.getItem("osint_user")||"").trim();
+    document.getElementById("profileAvatar").innerHTML=u?escH(u[0].toUpperCase()):'<i class="fa-solid fa-user-astronaut"></i>';
+    document.getElementById("profileDot").classList.toggle("on",/✓/.test(document.getElementById("loginState").textContent||"")); };
+  document.getElementById("profilePill").onclick=(e)=>{ e.stopPropagation(); document.getElementById("profilePop").classList.toggle("open"); paintPill(); };
+  document.getElementById("profilePop").onclick=(e)=>e.stopPropagation();
+  document.addEventListener("click",()=>document.getElementById("profilePop").classList.remove("open"));
+  document.addEventListener("keydown",(e)=>{ if(e.key==="Escape") document.getElementById("profilePop").classList.remove("open"); });
+  document.getElementById("username").addEventListener("input",paintPill);
   window.cvmBackend=()=>BACKEND; window.cvmAiHeaders=aiHeaders;
   // ---- core helpers: shared by Recommend / Improve-full / Improve-node ----
   // Colors: green=add, amber=modify, red=delete. All three flows use these.
   const escH = (s)=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;");
+  try{ paintPill(); }catch(_){}
   const clearHi = () => { try { cy.elements().removeClass("sug-add sug-mod sug-del flash-ok flash-no"); } catch(_){} };
   const paintClasses = (cls) => {
     const byId = (id) => cy.getElementById(String(id));
@@ -1466,7 +1514,7 @@
     try {
       const r = await fetch(BACKEND+"/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,token})});
       const j = await r.json();
-      loginState.textContent = j.ok ? "✓ "+j.user : "✗ "+(j.error||"login failed");
+      loginState.textContent = j.ok ? "✓ "+j.user : "✗ "+(j.error||"login failed"); paintPill();
     } catch(e){ loginState.textContent="offline (saved locally)"; }
   };
   const goBtn = document.getElementById("go");
@@ -2111,11 +2159,9 @@
     document.getElementById("nodePage").classList.remove("open"); pageNode = null;
     renderActive(); populateRelDropdowns();
   };
-  document.getElementById("npHist").onclick = async () => {
+  const loadPageHist = async () => {
     if (!pageNode) return;
     const box = document.getElementById("npHistList");
-    const open = box.style.display !== "none";
-    if (open) { box.style.display = "none"; return; }
     box.style.display = "flex";
     box.innerHTML = `<div style="font-size:11px;color:var(--dim)">loading history…</div>`;
     try {
@@ -2128,6 +2174,12 @@
         : `<div style="font-size:11px;color:var(--dim)">no versions yet — they land here on every save.</div>`;
       box.querySelectorAll("[data-prestore]").forEach(btn => btn.onclick = () => npRestoreVersion(Number(btn.dataset.prestore)));
     } catch (e) { box.innerHTML = `<div style="font-size:11px;color:var(--dim)">history offline</div>`; }
+  };
+  document.getElementById("npHist").onclick = async () => {
+    if (!pageNode) return;
+    const box = document.getElementById("npHistList");
+    if (box.style.display !== "none") { box.style.display = "none"; return; }
+    loadPageHist();
   };
   const npRestoreVersion = async (v) => {
     try {
@@ -2155,6 +2207,7 @@
       paintNpView(); npSetMode("view");
       document.getElementById("npSaved").textContent = "saved " + new Date().toLocaleTimeString() + " → shared wiki " + (p.shared_key || npCanon(pageLabel, pageNode));
       aiTerm("sys", `page saved: ${pageNode} → ${p.shared_key || ""} (${(p.body || "").length} chars, shared)`);
+      try { const pb = document.getElementById("npHistList"); if (pb && pb.style.display !== "none") loadPageHist(); } catch (_) {}
     } catch (e) { document.getElementById("npSaved").textContent = "save failed: " + e.message; }
     btn.innerHTML = '<i class="fa-solid fa-check"></i> Save page';
   };

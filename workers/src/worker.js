@@ -206,6 +206,122 @@ async function buildNetwork(env, text, user) {
   return { nodes, edges, adversarial: flags, ai_raw: ai, user };
 }
 
+// ---- minimal sqlite3 writer: rowid tables, leaf pages + single interior root ----
+// TEXT (UTF-8), REAL, INTEGER, NULL only. No indexes. Callee truncates; throws past ~40k rows/table.
+const _PS = 4096;
+function _varint(v) {
+  if (v < 0 || !Number.isSafeInteger(v)) throw new Error("bad varint");
+  if (v === 0) return [0];
+  const out = [];
+  while (v > 0) { out.unshift(v & 0x7f); v = Math.floor(v / 128); }
+  for (let i = 0; i < out.length - 1; i++) out[i] |= 0x80;
+  return out;
+}
+function _beInt(v, n) {
+  const b = new Array(n);
+  for (let i = n - 1; i >= 0; i--) { b[i] = v & 0xff; v = Math.floor(v / 256); }
+  return b;
+}
+function _intSerial(v) {
+  if (v === 0) return [8, []];
+  if (v === 1) return [9, []];
+  for (const [n, st] of [[1, 1], [2, 2], [3, 3], [4, 4], [6, 5], [8, 6]]) {
+    if (v >= -(2 ** (8 * n - 1)) && v <= 2 ** (8 * n - 1) - 1) {
+      let u = v < 0 ? v + 2 ** (8 * n) : v;
+      return [st, _beInt(u, n)];
+    }
+  }
+  throw new Error("int too big");
+}
+function _record(vals) {
+  const serials = [], bdy = [];
+  const te = new TextEncoder();
+  for (const v of vals) {
+    if (v === null || v === undefined) serials.push(0);
+    else if (typeof v === "number") {
+      if (Number.isInteger(v)) { const [st, b] = _intSerial(v); serials.push(st); bdy.push(...b); }
+      else { serials.push(7); const buf = new ArrayBuffer(8); new DataView(buf).setFloat64(0, v, false); bdy.push(...new Uint8Array(buf)); }
+    } else { const raw = te.encode(String(v)); serials.push(13 + raw.length * 2); bdy.push(...raw); }
+  }
+  const hdr = [];
+  for (const st of serials) hdr.push(..._varint(st));
+  return [..._varint(hdr.length + 1), ...hdr, ...bdy];
+}
+function _leaf(pack, base) {
+  // pack: [{cell:[..], rowid}] -> {pg, count}
+  const pg = new Uint8Array(_PS), dv = new DataView(pg.buffer);
+  let area = _PS;
+  const ptrs = pack.map((p) => { area -= p.cell.length; return area; });
+  const o = base;
+  pg[o] = 0x0d;
+  dv.setUint16(o + 1, 0); dv.setUint16(o + 3, pack.length); dv.setUint16(o + 5, area); pg[o + 7] = 0;
+  for (let i = 0; i < pack.length; i++) { dv.setUint16(o + 8 + 2 * i, ptrs[i]); pg.set(pack[i].cell, ptrs[i]); }
+  return { pg, count: pack.length };
+}
+function buildDb(tables) {
+  const enc = (rowid, payload) => [..._varint(payload.length), ..._varint(rowid), ...payload];
+  const packRows = (rows) => {
+    const pages = [];
+    let cur = [], used = 0;
+    const cap = _PS - 8;
+    rows.forEach((r, k) => {
+      const cell = enc(k + 1, _record(r));
+      if (cell.length + 2 > cap) throw new Error("single row too large (" + cell.length + " bytes)");
+      if (used + cell.length + 2 > cap && cur.length) { pages.push(cur); cur = []; used = 0; }
+      cur.push({ cell }); used += cell.length + 2;
+    });
+    if (cur.length) pages.push(cur);
+    return pages.map((p) => _leaf(p, 0));
+  };
+  const blobs = [], master = [];
+  let next = 2;
+  for (const t of tables) {
+    const leaves = packRows(t.rows);
+    if (leaves.length > 600) throw new Error("table " + t.name + " too large");
+    if (leaves.length <= 1) {
+      const lp = leaves.length ? leaves[0] : _leaf([], 0);
+      blobs.push({ page: next, bytes: lp.pg });
+      master.push(["table", t.name, t.name, next, t.sql]); next++;
+    } else {
+      const nos = leaves.map(() => next++);
+      const root = next++;
+      let acc = 0;
+      const kids = leaves.map((l, i) => { acc += l.count; return { page: nos[i], maxKey: acc }; });
+      const rp = new Uint8Array(_PS), dv = new DataView(rp.buffer);
+      rp[0] = 0x05;
+      let area = _PS;
+      const cells = kids.slice(0, -1).map((k) => [..._beInt(k.page, 4), ..._varint(k.maxKey)]);
+      const ptrs = cells.map((c) => { area -= c.length; return area; });
+      dv.setUint16(1, 0); dv.setUint16(3, cells.length); dv.setUint16(5, area); rp[7] = 0;
+      dv.setUint32(8, kids[kids.length - 1].page);
+      for (let i = 0; i < cells.length; i++) { dv.setUint16(12 + 2 * i, ptrs[i]); rp.set(cells[i], ptrs[i]); }
+      leaves.forEach((l, i) => blobs.push({ page: nos[i], bytes: l.pg }));
+      blobs.push({ page: root, bytes: rp });
+      master.push(["table", t.name, t.name, root, t.sql]);
+    }
+  }
+  const total = next - 1;
+  const file = new Uint8Array(_PS * total);
+  const hdr = new Uint8Array(100);
+  hdr.set(new TextEncoder().encode("SQLite format 3\0"), 0);
+  const dv = new DataView(hdr.buffer);
+  dv.setUint16(16, _PS); dv.setUint8(18, 1); dv.setUint8(19, 1);
+  dv.setUint8(21, 64); dv.setUint8(22, 32); dv.setUint8(23, 32);
+  dv.setUint32(28, total); dv.setUint32(40, 4); dv.setUint32(56, 1);
+  const mCells = master.map((r, i) => ({ cell: enc(i + 1, _record(r)) }));
+  const mp = _leaf(mCells, 100).pg;
+  file.set(hdr, 0); file.set(mp.slice(100), 100);
+  for (const b of blobs) file.set(b.bytes, _PS * (b.page - 1));
+  return file;
+}
+const OFFLINE_SCHEMA = [
+  { name: "meta", sql: "CREATE TABLE meta(k TEXT, v TEXT)" },
+  { name: "nodes", sql: "CREATE TABLE nodes(id TEXT, label TEXT, kind TEXT, layer TEXT, attrs TEXT)" },
+  { name: "edges", sql: "CREATE TABLE edges(source TEXT, target TEXT, rel TEXT, score REAL)" },
+  { name: "flags", sql: "CREATE TABLE flags(node TEXT, issue TEXT)" },
+  { name: "pages", sql: "CREATE TABLE pages(key TEXT, title TEXT, kind TEXT, body TEXT, updated REAL)" },
+  { name: "chat", sql: "CREATE TABLE chat(node TEXT, role TEXT, text TEXT, created REAL)" },
+];
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
@@ -237,6 +353,7 @@ export default {
           { name: "node-page", method: "GET|POST /api/node-page", out: "{node,title,kind,body,updated}" },
           { name: "node-chat", method: "GET|POST /api/node-chat", out: "{msgs}" },
           { name: "export", method: "GET /api/export?format=jsonld|cyjs", out: "graph file" },
+          { name: "export-offline", method: "POST /api/export/offline", in: "{uuid?,doc?}", out: "sqlite .db (meta,nodes,edges,flags,pages,chat)" },
         ],
         notes: "exec is disabled on Workers (no subprocess). tools.web gates web_search+fetch_url.",
       });
@@ -357,11 +474,6 @@ export default {
         const user = await getUser(env, body, req);
         return json(await buildNetwork(env, body.text || "", user));
       }
-      if (url.pathname === "/ingest") {
-        const user = await getUser(env, body, req);
-        await env.DB.prepare("INSERT INTO entities(name,kind,attrs,user) VALUES(?,?,?,?)").bind(body.name, body.kind || "Concept", JSON.stringify(body.attrs || {}), user).run();
-        return json({ ok: true, user });
-      }
       if (url.pathname === "/define") {
         return json(await defineConcept(env, body.concept || ""));
       }
@@ -431,15 +543,6 @@ export default {
       if (url.pathname === "/exec") {
         return json({ ok: false, code: -1, output: "exec disabled on Workers (no subprocess)", mode: "disabled" });
       }
-      if (url.pathname === "/mem") {
-        const op = body.op || "stats";
-        if (op === "compact" || op === "flush_expired") {
-          let n = 0;
-          for (const [k, v] of L1) if (v.exp < Date.now()) { L1.delete(k); n++; }
-          return json({ ok: true, compacted: n, size: L1.size });
-        }
-        return json({ ok: true, size: L1.size, backend: "d1", runtime: "cloudflare-workers" });
-      }
       if (url.pathname === "/zero") {
         const q = body.q || body.prompt || body.text || "";
         if (!q.trim()) return json({ ok: false, error: "empty q" });
@@ -460,6 +563,53 @@ export default {
       if (url.pathname === "/prompt") {
         await env.DB.prepare("INSERT OR REPLACE INTO prompts(name,template,created) VALUES(?,?,?)").bind(body.name, body.template, Date.now() / 1000).run();
         return json({ ok: true });
+      }
+      if (url.pathname === "/api/export/offline") {
+        // offline snapshot: the graph as the user sees it, as a real sqlite .db
+        // (built byte-for-byte in-JS: rowid tables, leaf pages + interior root).
+        const user = await getUser(env, body, req);
+        let doc = body.doc || { nodes: body.nodes || [], edges: body.edges || [], adversarial: body.adversarial || body.flags || [] };
+        let uuid = (body.uuid || "").trim(), name = body.name || "", version = 0, message = "";
+        if (uuid && !(doc.nodes || []).length && !(doc.edges || []).length) {
+          const v = body.v || "";
+          const g = v
+            ? await env.DB.prepare("SELECT version,name,doc,message FROM graph_versions WHERE uuid=? AND version=?").bind(uuid, Number(v)).first()
+            : await env.DB.prepare("SELECT version,name,doc,message FROM graph_versions WHERE uuid=? ORDER BY version DESC LIMIT 1").bind(uuid).first();
+          if (g) { doc = JSON.parse(g.doc); name = g.name || name; version = g.version; message = g.message || ""; }
+        }
+        if (!uuid) {
+          const b = new Uint8Array(16); crypto.getRandomValues(b);
+          uuid = [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+          const blob = JSON.stringify(doc).slice(0, 500000), now = Date.now() / 1000;
+          await env.DB.prepare("INSERT INTO graph_versions(uuid,version,user,name,doc,message,created) VALUES(?,?,?,?,?,?,?)").bind(uuid, 1, user, String(name || "offline export").slice(0, 120), blob, "offline export", now).run();
+          version = 1; message = "offline export";
+        }
+        const nodes = doc.nodes || [], edges = doc.edges || [], flags = doc.adversarial || doc.flags || [];
+        const rows = {
+          meta: [["app", "cvm-offline"], ["version", "1"], ["exported", String(Date.now() / 1000)], ["uuid", uuid], ["name", String(name || "")], ["graph_version", String(version)], ["message", String(message || "")]],
+          nodes: nodes.map((n) => [String(n.id ?? ""), String(n.label ?? ""), String(n.kind ?? ""), String(n.layer ?? ""), JSON.stringify(n.attrs || {}).slice(0, 2000)]),
+          edges: edges.map((e) => [String(e.source ?? ""), String(e.target ?? ""), String(e.rel ?? ""), Number(e.score ?? 0.5)]),
+          flags: flags.map((f) => (typeof f === "object" ? [String(f.node ?? ""), String(f.issue ?? "")] : ["", String(f)])),
+          pages: [], chat: [],
+        };
+        const labels = [...new Set(nodes.map((n) => String(n.label || n.id || "")).filter(Boolean))];
+        for (const lab of labels) {
+          const norm = (" " + lab.toLowerCase() + " ").replace(/\s+/g, " ").trim();
+          const ck = norm ? "concept:" + norm : lab;
+          const pg = await env.DB.prepare("SELECT title,kind,body,updated FROM node_pages WHERE node=? AND user=''").bind(ck).first()
+            || await env.DB.prepare("SELECT title,kind,body,updated FROM node_pages WHERE node=? AND user=''").bind(lab).first();
+          if (pg) {
+            rows.pages.push([ck, String(pg.title || ""), String(pg.kind || ""), String(pg.body || "").slice(0, 8000), Number(pg.updated || 0)]);
+            const ms = await env.DB.prepare("SELECT role,text,created FROM node_msgs WHERE node=? ORDER BY id DESC LIMIT 100").bind(ck).all();
+            for (const m of (ms.results || [])) rows.chat.push([ck, String(m.role), String(m.text).slice(0, 2000), Number(m.created || 0)]);
+          }
+        }
+        let bytes;
+        try {
+          bytes = buildDb(OFFLINE_SCHEMA.map((t) => ({ ...t, rows: rows[t.name] || [] })));
+        } catch (e) { return json({ ok: false, error: "snapshot too large: " + String(e.message || e).slice(0, 160) }); }
+        const short = uuid.slice(0, 8) || "graph";
+        return new Response(bytes, { headers: { "Content-Type": "application/x-sqlite3", "Content-Disposition": `attachment; filename="graph-${short}-v${version}.db"`, "Content-Length": String(bytes.length) } });
       }
       if (url.pathname === "/api/graph/commit") {
         const user = await getUser(env, body, req);

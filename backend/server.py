@@ -655,6 +655,21 @@ def _tools_allow(body):
         return set()
     return allow
 
+def _ai_begin(route, body):
+    """Shared entry for AI routes: tools allowlist + timed cache lookup.
+    Returns (allow, t0, ckey, hit-or-None). Hit already marked cached."""
+    allow = _tools_allow(body); t0 = time.time()
+    ck = _ai_cache_key(route, body); hit = cache_get(ck)
+    if hit: hit["cached"] = True; hit["ms"] = 0
+    return allow, t0, ck, hit
+
+def _ai_stamp(out, allow, t0):
+    """Shared exit for AI routes: tools/ms/model envelope."""
+    out.update({"tools": sorted(allow), "cached": False,
+                "ms": int((time.time() - t0) * 1000),
+                "model": os.environ.get("AI_MODEL", "muse-spark-1.3")})
+    return out
+
 def _ai_cache_key(route, body):
     h = hashlib.sha256(json.dumps({
         "r": route,
@@ -786,12 +801,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
             user=get_user(body, self.headers, self._client_ip())
             res=build_network(body.get("text",""), user)
             self._json(res)
-        elif self.path=="/ingest":
-            user=get_user(body, self.headers, self._client_ip())
-            c=sqlite3.connect(DB)
-            c.execute("INSERT INTO entities(name,kind,attrs,user) VALUES(?,?,?,?)",(body.get("name"),body.get("kind","Concept"),json.dumps(body.get("attrs",{})),user))
-            c.commit(); c.close()
-            self._json({"ok":True,"user":user})
         elif self.path=="/define":
             concept=body.get("concept","")
             res=define_concept(concept)
@@ -800,12 +809,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             nodes=body.get("nodes",[])
             edges=body.get("edges",[])
             user=get_user(body, self.headers, self._client_ip())
-            allow=_tools_allow(body)
-            t0=time.time()
-            ck=_ai_cache_key("recommend", body)
-            hit=cache_get(ck)
+            allow, t0, ck, hit = _ai_begin("recommend", body)
             if hit:
-                hit["cached"]=True; hit["ms"]=0
                 self._json(hit); return
             recs=[]
             agent_used=False
@@ -828,20 +833,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         if len(recs)>=5: break
                     if len(recs)>=5: break
             out={"ok":True,"recs":recs[:5],"agent":agent_used,
-                        "ai_configured":bool((os.environ.get("MODEL_API_KEY") or os.environ.get("AI_API_KEY"))),
-                        "model":os.environ.get("AI_MODEL","muse-spark-1.3"),
-                        "tools":sorted(allow),"cached":False,"ms":int((time.time()-t0)*1000)}
+                        "ai_configured":bool((os.environ.get("MODEL_API_KEY") or os.environ.get("AI_API_KEY")))}
+            _ai_stamp(out, allow, t0)
             if agent_used and recs: cache_set(ck, out)
             self._json(out)
         elif self.path=="/improve":
             instruction=body.get("input","") or body.get("instruction","")
             nodes=body.get("nodes",[]); edges=body.get("edges",[])
-            allow=_tools_allow(body)
-            t0=time.time()
-            ck=_ai_cache_key("improve", body)
-            hit=cache_get(ck)
+            allow, t0, ck, hit = _ai_begin("improve", body)
             if hit:
-                hit["cached"]=True; hit["ms"]=0
                 self._json(hit); return
             tpl=load_prompt("improve") or ""
             custom=body.get("prompt","")
@@ -852,8 +852,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 tpl=custom
             if AI_AGENT:
                 r=agent_improve(instruction, {"nodes":nodes,"edges":edges}, tpl, allow)
-                r["ok"]=True; r["agent"]=True; r["model"]=os.environ.get("AI_MODEL","muse-spark-1.3")
-                r["tools"]=sorted(allow); r["cached"]=False; r["ms"]=int((time.time()-t0)*1000)
+                r["ok"]=True; r["agent"]=True
+                _ai_stamp(r, allow, t0)
                 if r.get("ops"): cache_set(ck, r)
                 self._json(r)
             else:
@@ -863,12 +863,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             instruction=body.get("input","") or body.get("instruction","")
             directive=body.get("directive","") or ""
             nodes=body.get("nodes",[]); edges=body.get("edges",[])
-            allow=_tools_allow(body)
-            t0=time.time()
-            ck=_ai_cache_key("duel", body)
-            hit=cache_get(ck)
+            allow, t0, ck, hit = _ai_begin("duel", body)
             if hit:
-                hit["cached"]=True; hit["ms"]=0
                 self._json(hit); return
             if AI_AGENT:
                 try:
@@ -876,8 +872,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 except ImportError:
                     from meta_ai import agent_duel
                 r=agent_duel(instruction, {"nodes":nodes,"edges":edges}, allow, directive)
-                r["ok"]=True; r["model"]=os.environ.get("AI_MODEL","muse-spark-1.3")
-                r["tools"]=sorted(allow); r["cached"]=False; r["ms"]=int((time.time()-t0)*1000)
+                r["ok"]=True
+                _ai_stamp(r, allow, t0)
                 if r.get("ops"): cache_set(ck, r)
                 self._json(r)
             else:
@@ -885,11 +881,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif self.path=="/investigate":
             label=body.get("label","") or body.get("entity","")
             user=get_user(body, self.headers, self._client_ip())
-            allow=_tools_allow(body)
-            t0=time.time()
+            allow, t0, ck, hit = _ai_begin("investigate", body)
             if AI_AGENT:
                 r=agent_investigate(label, user, allow)
-                r["ok"]=True; r["tools"]=sorted(allow); r["ms"]=int((time.time()-t0)*1000)
+                r["ok"]=True
+                _ai_stamp(r, allow, t0)
                 self._json(r)
             else:
                 self._json({"ok":False,"error":"agent module missing"})
@@ -897,16 +893,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
             lang=body.get("lang","bash")
             code=body.get("code","")
             self._json(run_exec(lang, code))
-        elif self.path=="/mem":
-            # mem cache ops: stats | compact | snapshot(meta only) | clear-expired
-            op=(body.get("op") or "stats")
-            if not MEM or CACHE is None:
-                self._json({"ok":False,"error":"memcache unavailable"}); return
-            if op=="compact":
-                self._json({"ok":True, **CACHE.compact()}); return
-            if op=="flush_expired":
-                self._json({"ok":True, **CACHE.compact()}); return
-            self._json({"ok":True, **CACHE.stats()})
         elif self.path=="/zero":
             # secret eval: one request in, model executes/searches as needed, <30s
             q=body.get("q","") or body.get("prompt","") or body.get("text","")
