@@ -1,7 +1,7 @@
-# OSINT Graph Network — Getting Started
+# CVM (Cache Variable Memory) — Getting Started
 
 ## What it is
-A single-input OSINT tool. You type a question or paste an arbitrary object/entity/claim.
+A single-input CVM tool. You type a question or paste an arbitrary object/entity/claim.
 The backend (Meta Llama + SQLite DB similarity + adversarial red-team) builds a relational
 graph rendered with Cytoscape. Host choice (Local / LAN / WAN) is selectable in the UI.
 

@@ -1,8 +1,8 @@
 #!/bin/bash
 cd "$(dirname "$0")"
 PORT="${PORT:-3334}"
-PIDFILE="/tmp/opencode/threatpath.pid"
-LOG="/tmp/opencode/threatpath.log"
+PIDFILE="/tmp/opencode/cvm.pid"
+LOG="/tmp/opencode/cvm.log"
 
 cmd="${1:-start}"
 case "$cmd" in
@@ -10,7 +10,7 @@ case "$cmd" in
     if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
       echo "Already running (pid $(cat "$PIDFILE"))"; exit 0
     fi
-    nohup python3 backend/server.py > /tmp/opencode/threatpath.log 2>&1 &
+    nohup python3 backend/server.py > /tmp/opencode/cvm.log 2>&1 &
     echo $! > "$PIDFILE"
     echo "Backend started on http://localhost:$PORT (pid $!)"
     echo "Spot-check logs: tail -50 $LOG"

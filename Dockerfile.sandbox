@@ -13,5 +13,5 @@ USER nobody
 WORKDIR /work
 
 # container runs one snippet then exits, e.g.:
-#   docker run --rm -i --network none ... threatpath-sandbox:debian python3 /work/code
+#   docker run --rm -i --network none ... cvm-sandbox:debian python3 /work/code
 CMD ["bash", "--version"]

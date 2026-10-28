@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>OSINT Graph Network</title>
+<title>CVM — Cache Variable Memory</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
 <style>
   :root {
@@ -133,7 +133,7 @@
 <div class="wrap">
   <header>
     <div class="logo"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></div>
-    <div><h1>OSINT Graph Network</h1><div class="sub">One question. AI builds the relational graph. Tabs accumulate. Export/import JSON & URL.</div></div>
+    <div><h1>CVM</h1><div class="sub">Cache Variable Memory. One question. AI builds the relational graph. Tabs accumulate. Export/import JSON & URL.</div></div>
   </header>
   <div class="inputbar">
     <select id="hostMode" style="background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:0 12px;font-size:12px;cursor:pointer;">
@@ -1171,7 +1171,7 @@
   toolExec.onchange=()=>localStorage.setItem("osint_tool_exec",toolExec.checked?"1":"0");
   const aiTools=()=>({web:toolWeb.checked,exec:toolExec.checked});
   const aiHeaders=()=>({"Content-Type":"application/json","X-Auth-Token":localStorage.getItem("osint_token")||""});
-  window.osintBackend=()=>BACKEND; window.osintAiHeaders=aiHeaders;
+  window.cvmBackend=()=>BACKEND; window.cvmAiHeaders=aiHeaders;
   // ---- core helpers: shared by Recommend / Improve-full / Improve-node ----
   // Colors: green=add, amber=modify, red=delete. All three flows use these.
   const escH = (s)=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;");
@@ -2506,7 +2506,7 @@
   const graphToJSON = (pretty=true) => {
     if (activeTab < 0) return null;
     const d = tabs[activeTab].data;
-    const doc = { app:"cvm-osint", version:1, exported:new Date().toISOString(),
+    const doc = { app:"cvm", version:1, exported:new Date().toISOString(),
       layer:tabs[activeTab].name, nodes:normData(d).nodes, edges:normData(d).edges,
       adversarial:normData(d).adversarial||[] };
     return pretty ? JSON.stringify(doc, null, 2) : JSON.stringify(doc);
@@ -2697,18 +2697,18 @@
   });
   addEventListener("resize",apply);
   // command box: only when the log owns >55% of the screen; Enter runs the shell
-  // clean message interface for future chat/CLI hacks: window.osintShell.send(text)
+  // clean message interface for future chat/CLI hacks: window.cvmShell.send(text)
   // dot-commands are intercepted locally (.clear, .help, …); everything else → /exec
   const shellCmds={
     ".clear":()=>{ clearLog(); aiTerm("sys","log cleared (.clear)"); return null; },
     ".help":()=>".clear — clear this log · .help — this list · anything else runs as bash via POST /exec",
   };
-  window.osintShell={
+  window.cvmShell={
     commands:shellCmds,
     addCommand:(name,fn)=>{ shellCmds[String(name)]=fn; },
     exec:async(code,lang="bash")=>{
-      const B=(window.osintBackend&&window.osintBackend())||"";
-      const H=(window.osintAiHeaders&&window.osintAiHeaders())||{"Content-Type":"application/json"};
+      const B=(window.cvmBackend&&window.cvmBackend())||"";
+      const H=(window.cvmAiHeaders&&window.cvmAiHeaders())||{"Content-Type":"application/json"};
       const r=await fetch(B+"/exec",{method:"POST",headers:H,body:JSON.stringify({lang,code}),trace:false});
       return r.json().catch(()=>({ok:false,output:"bad exec response"}));
     },
@@ -2719,7 +2719,7 @@
       if(shellCmds[dot]){ const r=await shellCmds[dot](q); if(r) aiTerm("sys",r); return; }
       aiTerm("out","❯ "+q.slice(0,500));
       try{
-        const j=await window.osintShell.exec(q);
+        const j=await window.cvmShell.exec(q);
         const out=String((j&&(j.output||j.error))||"").trim()||"(empty output)";
         aiTerm("in",(j&&j.ok?"ok":"fail")+(j&&j.mode?" ["+j.mode+"]":"")+" · "+out.slice(0,3000));
       }catch(e){ aiTerm("in","fail · "+String(e&&e.message||e).slice(0,200)); }
@@ -2729,7 +2729,7 @@
     const q=cmdIn.value.trim();
     if(!q||cmdBtn.disabled) return;
     cmdBtn.disabled=true;
-    try{ await window.osintShell.send(q); cmdIn.value=""; cmdIn.style.height="auto"; }
+    try{ await window.cvmShell.send(q); cmdIn.value=""; cmdIn.style.height="auto"; }
     finally{ cmdBtn.disabled=false; cmdIn.focus(); }
   };
   cmdBtn.onclick=(e)=>{ e.stopPropagation(); sendCmd(); };

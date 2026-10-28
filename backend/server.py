@@ -10,7 +10,15 @@ if os.path.exists(_env_path):
             k,v=_line.split("=",1)
             os.environ.setdefault(k.strip(), v.strip())
 
-DB = os.path.join(os.path.dirname(__file__), "osint.db")
+def _db_path():
+    here = os.path.dirname(__file__)
+    new = os.path.join(here, "cvm.db"); old = os.path.join(here, "osint.db")
+    if not os.path.exists(new) and os.path.exists(old):
+        try:
+            import shutil as _sh; _sh.copyfile(old, new)
+        except Exception: pass
+    return new
+DB = _db_path()
 AI_URL = os.environ.get("AI_URL", "https://api.openai.com/v1/chat/completions")
 AI_KEY = os.environ.get("MODEL_API_KEY", "") or os.environ.get("AI_API_KEY", "")
 AI_MODEL = os.environ.get("AI_MODEL", "muse-spark-1.3")
@@ -75,7 +83,7 @@ def init_db():
     c.execute("""CREATE INDEX IF NOT EXISTS idx_node_msgs ON node_msgs(node, user, id)""")
     # seed prompts
     seeds = {
-     "entity_extract": "You are an OSINT graph builder. Given free-text input, extract a knowledge graph.\nReturn ONLY valid JSON with keys: nodes (list of {id,label,kind,attrs}) and edges (list of {source,target,rel,score}).\nkinds: Person, Organization, Domain, IP, Location, Event, Concept, Asset.\nInput: {text}",
+     "entity_extract": "You are a CVM (Cache Variable Memory) graph builder. Given free-text input, extract a knowledge graph.\nReturn ONLY valid JSON with keys: nodes (list of {id,label,kind,attrs}) and edges (list of {source,target,rel,score}).\nkinds: Person, Organization, Domain, IP, Location, Event, Concept, Asset.\nInput: {text}",
      "concept_define": "Define the concept '{concept}' concisely. Return JSON: {\"name\":...,\"kind\":\"Concept\",\"attrs\":{\"definition\":...,\"aliases\":[],\"related\":[]}}.",
      "redteam": "Critique this graph for false correlations, single-source dominance, and contradictions. Return JSON list of {\"issue\":...}.",
       "improve": "You are a graph editor. Given the instruction, input text, and current graph JSON, propose improvements. Reply with ONLY a JSON array of ops. Shapes: {\"op\":\"delete_node\",\"id\":..} {\"op\":\"delete_edge\",\"source\":..,\"target\":..} {\"op\":\"add_node\",\"id\":..,\"label\":..,\"kind\":..} {\"op\":\"add_edge\",\"source\":..,\"target\":..,\"rel\":..} {\"op\":\"rename_node\",\"id\":..,\"label\":..} {\"op\":\"set_attr\",\"id\":..,\"key\":..,\"value\":..}. Instruction: {input} Graph: {graph}",
@@ -198,7 +206,7 @@ def wiki_seed(term):
         return None
     try:
         url = "https://en.wikipedia.org/api/rest_v1/page/summary/" + _up.quote(t.replace(" ", "_"))
-        req = urllib.request.Request(url, headers={"User-Agent": "threatpath-living-pages/1.0 (contact: local)"})
+        req = urllib.request.Request(url, headers={"User-Agent": "cvm-living-pages/1.0 (contact: local)"})
         with urllib.request.urlopen(req, timeout=8) as r:
             j = json.loads(r.read())
         if j.get("type") == "disambiguation" and not j.get("extract"):
@@ -521,7 +529,7 @@ def _run_exec_sandbox(lang, code):
     import shutil, tempfile
     if not shutil.which("docker"):
         return {"ok": False, "code": -1, "output": "sandbox unavailable: docker not found on this host", "mode": "sandbox"}
-    image = os.environ.get("SANDBOX_IMAGE", "threatpath-sandbox:debian")
+    image = os.environ.get("SANDBOX_IMAGE", "cvm-sandbox:debian")
     timeout = int(os.environ.get("SANDBOX_TIMEOUT", str(EXEC_TIMEOUT)))
     mem = os.environ.get("SANDBOX_MEM", "256m")
     cpus = os.environ.get("SANDBOX_CPUS", "0.5")
@@ -603,7 +611,7 @@ def build_offline_db(doc, meta=None):
         src.close()
     except Exception:
         pass
-    meta_rows = {"app": "threatpath-offline", "version": "1", "exported": time.time(),
+    meta_rows = {"app": "cvm-offline", "version": "1", "exported": time.time(),
                  "uuid": meta.get("uuid", ""), "name": meta.get("name", ""),
                  "graph_version": meta.get("version", 0), "message": meta.get("message", "")}
     for k, v in meta_rows.items():
@@ -684,7 +692,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             q=parse_qs(urlparse(self.path).query).get("q",[""])[0]
             self._json({"results":db_search(q)})
         elif self.path=="/api/agent-manifest":
-            self._json({"name":"osint-graph","version":2,"tools":[
+            self._json({"name":"cvm","version":2,"tools":[
               {"name":"build","method":"POST /build","in":{"text":"str"},"out":"{nodes,edges,adversarial}"},
               {"name":"recommend","method":"POST /recommend","in":{"nodes":[],"edges":[],"tools":{"web":True,"exec":False}},"out":"{ok,recs,tools,ms,cached}"},
               {"name":"improve","method":"POST /improve","in":{"input":"str","nodes":[],"edges":[],"tools":{},"prompt":"optional"},"out":"{ok,ops,tools,ms,cached}"},

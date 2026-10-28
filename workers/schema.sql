@@ -1,5 +1,5 @@
--- D1 schema for threatpath (mirrors backend/server.py init_db).
--- Apply: wrangler d1 execute threatpath --file workers/schema.sql
+-- D1 schema for CVM (mirrors backend/server.py init_db).
+-- Apply: wrangler d1 execute cvm --file workers/schema.sql
 CREATE TABLE IF NOT EXISTS entities (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, kind TEXT, attrs TEXT, embedding TEXT, user TEXT);
 CREATE TABLE IF NOT EXISTS relations (id INTEGER PRIMARY KEY AUTOINCREMENT, src TEXT, dst TEXT, rel TEXT, score REAL, evidence TEXT, user TEXT);
 CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, ip TEXT, created REAL);

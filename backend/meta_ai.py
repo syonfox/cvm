@@ -20,12 +20,18 @@ MODEL = os.environ.get("AI_MODEL", "muse-spark-1.3")
 MAX_TURNS = 4
 TIMEOUT = 60
 
-DB = os.path.join(os.path.dirname(__file__), "osint.db")
+_HERE = os.path.dirname(__file__)
+_NEWDB = os.path.join(_HERE, "cvm.db"); _OLDDB = os.path.join(_HERE, "osint.db")
+if not os.path.exists(_NEWDB) and os.path.exists(_OLDDB):
+    try:
+        import shutil as _sh; _sh.copyfile(_OLDDB, _NEWDB)
+    except Exception: pass
+DB = _NEWDB
 
 # ---------- local tools ----------
 
 def tool_graph_search(query, user=""):
-    """Search the local OSINT sqlite graph."""
+    """Search the local CVM sqlite graph."""
     try:
         c = sqlite3.connect(DB)
         rows = c.execute(
@@ -44,7 +50,7 @@ def tool_web_search(query):
     try:
         q = urllib.parse.urlencode({"q": query, "format": "json", "no_html": 1})
         req = urllib.request.Request("https://api.duckduckgo.com/?" + q,
-                                     headers={"User-Agent": "osint-graph/1.0"})
+                                     headers={"User-Agent": "cvm/1.0"})
         with urllib.request.urlopen(req, timeout=15) as r:
             j = json.loads(r.read())
         out = []
@@ -103,7 +109,7 @@ def tool_fetch_url(url):
             return {"error": "dns failed"}
         cur = url
         for _ in range(4):
-            req = urllib.request.Request(cur, headers={"User-Agent": "osint-graph/1.0"})
+            req = urllib.request.Request(cur, headers={"User-Agent": "cvm/1.0"})
             import http.client as _hc
             class _NoRedir(urllib.request.HTTPRedirectHandler):
                 def redirect_request(self, req, fp, code, msg, hdrs, newurl):
@@ -162,7 +168,7 @@ def tool_exec_code(code, lang="python3"):
 
 TOOLS = {
     "graph_search": (tool_graph_search,
-                     "Search the local OSINT graph DB for entities.",
+                     "Search the local CVM graph DB for entities.",
                      {"query": "search string", "user": "username (optional)"}),
     "web_search": (tool_web_search,
                    "Search the public web for fresh info beyond training data.",
@@ -313,13 +319,13 @@ def agent_run(user_msg, context="", allow=None):
             "turns": turns}
 
 
-SYS_RECO = ("You are an OSINT link-prediction agent. You have tools: "
+SYS_RECO = ("You are a CVM (Cache Variable Memory) link-prediction agent. You have tools: "
             "graph_search (local DB), web_search (live web), fetch_url. "
             "Use them to ground each recommendation. Reply with ONLY a JSON "
             "array of exactly 5 objects {source,target,rel,reason} using the "
             "given entity names verbatim.")
 
-SYS_INVEST = ("You are an OSINT investigator with tools: graph_search, "
+SYS_INVEST = ("You are a CVM (Cache Variable Memory) investigator with tools: graph_search, "
               "web_search, fetch_url. Investigate the entity, use tools for "
               "live facts, then reply with short markdown: summary, "
               "key findings (bullets), suggested graph links.")

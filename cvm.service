@@ -1,12 +1,12 @@
 [Unit]
-Description=threatpath OSINT graph backend
+Description=CVM (Cache Variable Memory) graph backend
 After=network.target
 
 [Service]
 Type=simple
 User=www-data
-WorkingDirectory=/opt/threatpath
-EnvironmentFile=/opt/threatpath/.env
+WorkingDirectory=/opt/cvm
+EnvironmentFile=/opt/cvm/.env
 ExecStart=/usr/bin/python3 backend/server.py
 Restart=on-failure
 RestartSec=3

@@ -24,7 +24,7 @@ CREATE INDEX IF NOT EXISTS idx_page_versions ON page_versions(node, user, versio
 `;
 
 const SEEDS = {
-  entity_extract: "You are an OSINT graph builder. Given free-text input, extract a knowledge graph.\nReturn ONLY valid JSON with keys: nodes (list of {id,label,kind,attrs}) and edges (list of {source,target,rel,score}).\nkinds: Person, Organization, Domain, IP, Location, Event, Concept, Asset.\nInput: {text}",
+  entity_extract: "You are a CVM (Cache Variable Memory) graph builder. Given free-text input, extract a knowledge graph.\nReturn ONLY valid JSON with keys: nodes (list of {id,label,kind,attrs}) and edges (list of {source,target,rel,score}).\nkinds: Person, Organization, Domain, IP, Location, Event, Concept, Asset.\nInput: {text}",
   concept_define: "Define the concept '{concept}' concisely. Return JSON: {\"name\":...,\"kind\":\"Concept\",\"attrs\":{\"definition\":...,\"aliases\":[],\"related\":[]}}.",
   redteam: "Critique this graph for false correlations, single-source dominance, and contradictions. Return JSON list of {\"issue\":...}.",
   improve: "You are a graph editor. Given the instruction, input text, and current graph JSON, propose improvements. Reply with ONLY a JSON array of ops. Shapes: {\"op\":\"delete_node\",\"id\":..} {\"op\":\"delete_edge\",\"source\":..,\"target\":..} {\"op\":\"add_node\",\"id\":..,\"label\":..,\"kind\":..} {\"op\":\"add_edge\",\"source\":..,\"target\":..,\"rel\":..} {\"op\":\"rename_node\",\"id\":..,\"label\":..} {\"op\":\"set_attr\",\"id\":..,\"key\":..,\"value\":..}. Instruction: {input} Graph: {graph}",
@@ -223,7 +223,7 @@ export default {
     }
     if (req.method === "GET" && url.pathname === "/api/agent-manifest") {
       return json({
-        name: "osint-graph", version: 3, runtime: "cloudflare-workers",
+        name: "cvm", version: 3, runtime: "cloudflare-workers",
         tools: [
           { name: "build", method: "POST /build", in: { text: "str" }, out: "{nodes,edges,adversarial}" },
           { name: "recommend", method: "POST /recommend", in: { nodes: [], edges: [], tools: { web: true } }, out: "{ok,recs,tools,ms,cached}" },
@@ -310,7 +310,7 @@ export default {
       const term = (label || node).replace(/^concept:/, "").trim();
       if (term && term.length <= 120) {
         try {
-          const wr = await fetch("https://en.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(term.replace(/ /g, "_")), { headers: { "User-Agent": "threatpath-living-pages/1.0" } });
+          const wr = await fetch("https://en.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(term.replace(/ /g, "_")), { headers: { "User-Agent": "cvm-living-pages/1.0" } });
           if (wr.ok) {
             const wj = await wr.json();
             if (wj.extract) {

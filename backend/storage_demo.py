@@ -7,7 +7,7 @@ reports total bytes + write time for each strategy:
   b) gzipped full JSON per version
   c) incremental delta JSON per version    (base snapshot + per-version diff)
   d) git repo (one commit per version)     (git's own pack/delta compression)
-  e) sqlite table of full snapshots       (what threatpath uses)
+  e) sqlite table of full snapshots       (what CVM uses)
 
 Run:  python3 backend/storage_demo.py [N] [nodes]
 """

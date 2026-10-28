@@ -46,7 +46,7 @@ def dual_write_relation(src, dst, rel, score, evidence, user):
         return {"error": str(e)[:200]}
 
 
-def backfill(sqlite_path="backend/osint.db", batch=500):
+def backfill(sqlite_path="backend/cvm.db", batch=500):
     """One-off: SELECT * per table -> reducer calls in batches (see migration doc §3)."""
     import sqlite3
     con = sqlite3.connect(sqlite_path)

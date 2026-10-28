@@ -5,14 +5,14 @@
 export const MODEL_DEFAULT = "muse-spark-1.3";
 
 export const SYS_RECO =
-  "You are an OSINT link-prediction agent. You have tools: " +
+  "You are a CVM (Cache Variable Memory) link-prediction agent. You have tools: " +
   "graph_search (local DB), web_search (live web), fetch_url. " +
   "Use them to ground each recommendation. Reply with ONLY a JSON " +
   "array of exactly 5 objects {source,target,rel,reason} using the " +
   "given entity names verbatim.";
 
 export const SYS_INVEST =
-  "You are an OSINT investigator with tools: graph_search, " +
+  "You are a CVM (Cache Variable Memory) investigator with tools: graph_search, " +
   "web_search, fetch_url. Investigate the entity, use tools for " +
   "live facts, then reply with short markdown: summary, " +
   "key findings (bullets), suggested graph links.";
@@ -85,7 +85,7 @@ async function toolWebSearch(query) {
   // DDG instant API, then html scrape fallback (same as meta_ai.py).
   try {
     const u = "https://api.duckduckgo.com/?" + new URLSearchParams({ q: query, format: "json", no_html: "1" });
-    const r = await fetch(u, { headers: { "User-Agent": "osint-graph/1.0" }, signal: AbortSignal.timeout(12000) });
+    const r = await fetch(u, { headers: { "User-Agent": "cvm/1.0" }, signal: AbortSignal.timeout(12000) });
     const j = await r.json();
     const out = [];
     if (j.AbstractText) out.push({ text: j.AbstractText, url: j.AbstractURL });
@@ -134,7 +134,7 @@ async function toolFetchUrl(url) {
     if (blockedHost(host)) return { error: "blocked: private/loopback host" };
     let cur = url;
     for (let i = 0; i < 4; i++) {
-      const r = await fetch(cur, { headers: { "User-Agent": "osint-graph/1.0" }, redirect: "manual", signal: AbortSignal.timeout(15000) });
+      const r = await fetch(cur, { headers: { "User-Agent": "cvm/1.0" }, redirect: "manual", signal: AbortSignal.timeout(15000) });
       if ([301, 302, 303, 307, 308].includes(r.status)) {
         const loc = r.headers.get("location");
         if (!loc) return { error: "redirect without location" };

@@ -1,6 +1,6 @@
 # SpacetimeDB Migration Guide
 
-Current state: **sqlite** (`backend/osint.db`, tables below) + **in-memory LRU** (`backend/memcache.py`, 1GB cap).
+Current state: **sqlite** (`backend/cvm.db`, tables below) + **in-memory LRU** (`backend/memcache.py`, 1GB cap).
 
 ## 1. What lives where today
 

@@ -1,6 +1,6 @@
 # Self-hosting plan: Debian exec sandbox + offline snapshots + SpacetimeDB at 800 GB+
 
-This is the runbook for running threatpath off Cloudflare: a Debian sandbox for
+This is the runbook for running CVM off Cloudflare: a Debian sandbox for
 `/exec`, portable sqlite snapshots of any graph, and a self-hosted SpacetimeDB
 instance sized for 800+ GB ("slowstation" archive box).
 
@@ -12,12 +12,12 @@ nodejs, `USER nobody`).
 
 ```bash
 # build once per host
-docker build -f Dockerfile.sandbox -t threatpath-sandbox:debian .
+docker build -f Dockerfile.sandbox -t cvm-sandbox:debian .
 
 # .env
 EXEC_ENABLED=1
 EXEC_MODE=sandbox
-SANDBOX_IMAGE=threatpath-sandbox:debian
+SANDBOX_IMAGE=cvm-sandbox:debian
 SANDBOX_TIMEOUT=30
 SANDBOX_MEM=256m
 SANDBOX_CPUS=0.5
@@ -59,7 +59,7 @@ JSON for interchange, `.db` for a self-contained archive.
 ```bash
 # one box, docker compose (suggested compose file below)
 cp .env.example .env   # MODEL_API_KEY, AUTH_TOKEN, EXEC_* as above
-docker build -f Dockerfile.sandbox -t threatpath-sandbox:debian .
+docker build -f Dockerfile.sandbox -t cvm-sandbox:debian .
 docker compose up -d --build
 ```
 
@@ -82,7 +82,7 @@ Notes:
   *only* the pinned sandbox image (see `SANDBOX_IMAGE`; runs are `--rm`,
   resourceless after exit). Alternative without socket-mount: run snippets over
   `EXEC_MODE=ssh` to a locked-down sibling container. Never `local` in prod.
-- Or keep the current `threatpath.service` (systemd) + system docker; same env.
+- Or keep the current `cvm.service` (systemd) + system docker; same env.
 - Put Cloudflare in front: proxied DNS (5 min) or `cloudflared` Tunnel (no
   open ports) — see `DEPLOY.md` §B. Tunnel is the recommended demo link.
 
@@ -108,7 +108,7 @@ data dir (snapshots + commit log), so capacity planning = disk planning.
   × 1095 days ≈ 2.2 TB → next disk tier.
 - **Backups**: nightly `spacetime` snapshot + `rsync --inplace` of the data
   dir to a second box (or `rclone` to R2/S3); test-restore quarterly by
-  replaying the log dir on a scratch box. sqlite sidecars (`osint.db`,
+  replaying the log dir on a scratch box. sqlite sidecars (`cvm.db`,
   offline `.db` files) back up with plain file copy (WAL mode: copy db +
   `-wal` together, or `.backup` first).
 - **Migrate cloud → self-host**: `spacetime publish` the same
@@ -133,7 +133,7 @@ data dir (snapshots + commit log), so capacity planning = disk planning.
 | var | default | meaning |
 |---|---|---|
 | `EXEC_MODE` | `sandbox` | `sandbox` (Debian docker) / `local` / `ssh` |
-| `SANDBOX_IMAGE` | `threatpath-sandbox:debian` | pinned sandbox image |
+| `SANDBOX_IMAGE` | `cvm-sandbox:debian` | pinned sandbox image |
 | `SANDBOX_TIMEOUT/MEM/CPUS/NET` | `30`/`256m`/`0.5`/`none` | per-run caps |
 | `PAGE_HISTORY_DAYS` | `365` | living-page version retention |
 | `GRAPH_HISTORY_DAYS` | `1095` | graph snapshot retention |

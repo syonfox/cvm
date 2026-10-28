@@ -18,11 +18,11 @@ What changes vs the VPS build:
 npm i -g wrangler
 cd workers
 wrangler login                                   # opens dash.cloudflare.com — the dashboard
-wrangler d1 create threatpath                   # paste the database_id into wrangler.toml
-wrangler d1 execute threatpath --file schema.sql
+wrangler d1 create cvm                             # paste the database_id into wrangler.toml
+wrangler d1 execute cvm --remote --file schema.sql
 wrangler secret put MODEL_API_KEY               # AI key (never in code)
 # optional: wrangler secret put AUTH_TOKEN       # login gate, like .env
-wrangler deploy                                  # → https://threatpath.<you>.workers.dev
+wrangler deploy                                  # → https://cvm.<you>.workers.dev
 ```
 
 Custom domain: Workers & Pages → your worker → Settings → Domains & Routes →
@@ -30,8 +30,8 @@ Add Custom Domain (`graph.<domain>`). Free SSL, done.
 
 Dashboards for the demo link:
 - **App + Worker logs/observability**: Cloudflare dashboard → Workers & Pages →
-  `threatpath` (traffic, errors, realtime logs).
-- **Database dashboard**: dashboard → Storage & Databases → D1 → `threatpath`
+  `cvm` (traffic, errors, realtime logs).
+- **Database dashboard**: dashboard → Storage & Databases → D1 → `cvm`
   (browse every table live: entities, graphs, node_pages, node_chat...).
 - Share the `*.workers.dev` URL (or custom domain) — that's the demo link.
 
@@ -52,17 +52,17 @@ The production shape is: **VPS runs the app, Cloudflare fronts it (DNS + Tunnel 
 ```bash
 # on the VPS
 sudo apt install python3 caddy
-git clone <repo> /opt/threatpath && cd /opt/threatpath
+git clone <repo> /opt/cvm && cd /opt/cvm
 cp .env.example .env && nano .env   # MODEL_API_KEY, AUTH_TOKEN, PORT
-sudo cp threatpath.service /etc/systemd/system/
-sudo systemctl enable --now threatpath
+sudo cp cvm.service /etc/systemd/system/
+sudo systemctl enable --now cvm
 # DNS: point A record at VPS, then
 DOMAIN=graph.example.com caddy run --config Caddyfile
 ```
 
 Health: `curl https://graph.example.com/health` → `{"status":"ok"}`.
 
-Or Docker: `docker build -t threatpath . && docker run -p 3334:3334 --env-file .env threatpath`.
+Or Docker: `docker build -t cvm . && docker run -p 3334:3334 --env-file .env cvm`.
 
 ## B. Cloudflare in front (pick one)
 
@@ -70,8 +70,8 @@ Or Docker: `docker build -t threatpath . && docker run -p 3334:3334 --env-file .
 SSL mode "Full (strict)". Caddy still terminates with its own cert. 5-minute setup.
 
 **Option 2 — Tunnel (no open ports).** On the VPS:
-`cloudflared tunnel login && cloudflared tunnel create threatpath`,
-route DNS to it, then run `cloudflared tunnel run --url http://localhost:3334 threatpath`.
+`cloudflared tunnel login && cloudflared tunnel create cvm`,
+route DNS to it, then run `cloudflared tunnel run --url http://localhost:3334 cvm`.
 Firewall can drop 80/443 entirely. Best for a demo link you share.
 
 **Option 3 — Pages for the static half.** `index.html` + `0shot.html` are static —

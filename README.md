@@ -1,12 +1,12 @@
-# OSINT Graph (threatpath)
+# CVM — Cache Variable Memory
 
-prior work threatpath-production.up.railway.app
+CVM (Cache Variable Memory), evolved from the threatpath prototype
 
-demo prior work threatpath.sgol.workers.dev
+live demo https://threatpath.sgol.workers.dev
 
 
 
-Single-input OSINT graph viewer + secret `0shot` eval page, with a Python stdlib backend.
+Single-input CVM graph viewer + secret `0shot` eval page, with a Python stdlib backend.
 
 ## Components
 
@@ -17,7 +17,7 @@ Single-input OSINT graph viewer + secret `0shot` eval page, with a Python stdlib
 | **Backend** | `backend/server.py` | stdlib HTTP. Routes: `/build`, `/recommend`, `/improve`, `/zero` (agent, 28s / 6 fresh + 8 resume turns, forced final no-tools pass), `/exec`, `/mem`, `/health`, `/info`, `/api/agent-manifest`. |
 | **Agent** | `backend/meta_ai.py` | `agent_zero` (plain-language answers, `format=json` instruction, history resume). `web_search` = DDG instant API with `html.duckduckgo.com` scrape fallback. |
 | **Cache L1** | `backend/memcache.py` | 1GB in-memory LRU, TTL, `compact`/`snapshot`/`restore`/`stats`, background compactor, `POST /mem`. Fronts cache reads; L2 is sqlite today, SpacetimeDB next. |
-| **Store (today)** | `backend/osint.db` (sqlite) | `entities`, `relations`, `graphs`, `concept_cache`, `users`, `prompts`. Cold backup after migration. |
+| **Store (today)** | `backend/cvm.db` (sqlite, auto-migrated from legacy `osint.db`) | `entities`, `relations`, `graphs`, `concept_cache`, `users`, `prompts`. Cold backup after migration. |
 | **Store (next)** | `spacetimedb/` + `spacetime.json` | SpacetimeDB host modeled on `~/oc/oc`: module schema (`entity`, `relation`, `snapshot_chunk`, `kv_cache`), local console proxy. See `SPACETIMEDB_MIGRATION.md`. |
 | **Handoff keys** | localStorage | `osint_0shot_handoff`, `osint_0shot_result`, `osint_0shot_ops`, `osint_0shot_prompt`; `osint_view`, `osint_phys`, layer state. |
 
@@ -39,7 +39,7 @@ Browser ──> this backend (:3333, stdlib) ──> SpacetimeDB (maincloud or l
                                                               compact_cache
 ```
 
-- `spacetime.json` = host config (`database: osintdb`, `server: maincloud`, local override).
+- `spacetime.json` = host config (`database: osintdb`, `server: maincloud`, local override). D1 database is already `cvm`.
 - `spacetimedb/schema.ts` = module tables (mirrors `SPACETIMEDB_MIGRATION.md` §2).
 - `backend/spacetime_sync.py` = dual-write/backfill/proxy helpers (sqlite → reducers).
 - Steps: `spacetime publish` → dual-write → backfill (~500/batch) → cut reads → scheduled `compact_cache` → retire sqlite writes.
