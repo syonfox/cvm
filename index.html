@@ -33,14 +33,23 @@
   .hero-row #go::after { content:""; position:absolute; top:0; left:-60%; width:42%; height:100%; background:linear-gradient(100deg,transparent,rgba(255,255,255,.5),transparent); transform:skewX(-20deg); animation:goSheen 3s ease-in-out infinite; pointer-events:none; }
   @keyframes goSheen { 0% { left:-60%; } 55%,100% { left:170%; } }
   .tool-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; width:100%; }
-  #profileWrap { position:relative; }
-  #profilePill { width:38px; height:38px; border-radius:50%; border:2px solid transparent; background:linear-gradient(#0b1226,#0b1226) padding-box,linear-gradient(135deg,#38bdf8,#a78bfa) border-box; color:var(--text); cursor:pointer; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:15px; }
-  #profilePill:hover { box-shadow:0 0 16px rgba(56,189,248,.5); transform:scale(1.06); }
-  #profileDot { position:absolute; bottom:1px; right:1px; width:11px; height:11px; border-radius:50%; background:#64748b; border:2px solid #0b1226; }
+  #profileWrap { position:relative; display:flex; flex-direction:column; align-items:center; }
+  #profilePill { width:52px; height:52px; border-radius:16px; border:2px solid rgba(56,189,248,.6); background:linear-gradient(180deg,#38bdf8,#0284c7 60%,#0c4a6e); color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:19px; box-shadow:0 5px 0 #082f49, 0 10px 26px rgba(0,0,0,.55), inset 0 2px 0 rgba(255,255,255,.45); transition:transform .08s, box-shadow .08s; position:relative; }
+  #profilePill:hover { filter:brightness(1.12); }
+  #profilePill:active, #profilePill.open { transform:translateY(4px); box-shadow:0 1px 0 #082f49, 0 4px 12px rgba(0,0,0,.5), inset 0 2px 0 rgba(255,255,255,.35); }
+  #profileDot { position:absolute; bottom:-4px; right:-4px; width:13px; height:13px; border-radius:50%; background:#64748b; border:2px solid #0b1226; }
   #profileDot.on { background:#34d399; box-shadow:0 0 8px #34d399; animation:dotPulse 2s ease-in-out infinite; }
   @keyframes dotPulse { 0%,100% { box-shadow:0 0 4px #34d399; } 50% { box-shadow:0 0 12px #34d399; } }
-  #profilePop { display:none; position:absolute; top:46px; left:0; z-index:300; flex-direction:column; gap:8px; background:rgba(8,12,24,.97); border:1px solid var(--border); border-radius:14px; padding:12px; min-width:250px; box-shadow:0 18px 50px rgba(0,0,0,.6); }
+  #profilePop { display:none; position:absolute; top:60px; left:50%; transform:translateX(-50%); z-index:300; flex-direction:column; gap:8px; background:rgba(8,12,24,.97); border:1px solid var(--border); border-radius:14px; padding:12px; min-width:250px; box-shadow:0 18px 50px rgba(0,0,0,.6); }
   #profilePop.open { display:flex; animation:popIn .18s cubic-bezier(.22,1.35,.36,1); }
+  #profilePop input, #profilePop select { width:100%; box-sizing:border-box; background:rgba(0,0,0,.4); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:9px; font-size:12px; }
+  #profilePop button.go { width:100%; background:linear-gradient(180deg,#38bdf8,#0284c7); border:none; color:#fff; border-radius:10px; padding:11px; font-weight:800; font-size:13px; cursor:pointer; box-shadow:0 4px 0 #0c4a6e, 0 8px 18px rgba(0,0,0,.5); }
+  #profilePop button.go:active { transform:translateY(3px); box-shadow:0 1px 0 #0c4a6e; }
+  #profileFan { position:absolute; top:58px; left:50%; width:0; height:0; pointer-events:none; z-index:301; }
+  #profileWrap.fan-open .rad-btn { opacity:1; pointer-events:auto; transform:var(--pos); }
+  #profileWrap.fan-open .rad-btn:hover { border-color:var(--cyan); color:var(--cyan); filter:brightness(1.25); transform:var(--pos) scale(1.08) !important; }
+  #radialDock.open .rad-btn { opacity:1; pointer-events:auto; transform:var(--pos); }
+  #radialDock.open .rad-btn:hover { border-color:var(--cyan); color:var(--cyan); filter:brightness(1.25); transform:var(--pos) scale(1.08) !important; }
   @keyframes popIn { from { opacity:0; transform:translateY(-8px) scale(.96); } }
   #promptDetails { font-size:12px; color:var(--dim); background:rgba(0,0,0,.35); border:1px solid var(--border); border-radius:10px; padding:6px 12px; }
   #promptDetails summary { cursor:pointer; user-select:none; }
@@ -188,7 +197,8 @@
     </div>
     <div class="tool-row">
     <div id="profileWrap">
-      <button id="profilePill" title="connection & login"><span id="profileAvatar"><i class="fa-solid fa-user-astronaut"></i></span><span id="profileDot"></span></button>
+      <button id="profilePill" title="profile — fan: settings + your 3 buttons"><span id="profileAvatar"><i class="fa-solid fa-user-astronaut"></i></span><span id="profileDot"></span></button>
+      <div id="profileFan"></div>
       <div id="profilePop">
         <select id="hostMode" style="background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:8px;font-size:12px;cursor:pointer;width:100%">
           <option value="local">Local (localhost)</option>
@@ -258,11 +268,6 @@
       <div id="layerStatus">—</div>
       <div id="graphMeta" style="font-size:10.5px;color:var(--dim);word-break:break-all"></div>
       <div id="graphHist" style="display:none;flex-direction:column;gap:4px;max-height:220px;overflow:auto"></div>
-    </div>
-    <div id="radialDock">
-      <div id="radialSheet"></div>
-      <div id="radialFan"></div>
-      <button id="radialFab" title="quick actions"><i class="fa-solid fa-plus"></i></button>
     </div>
   </aside>
   <div class="grid">
@@ -1177,9 +1182,10 @@
       aiTerm("sys", `restored v${v} of ${String(t.uuid).slice(0, 8)} (revert will commit as a new version)`);
     } catch (e) { aiTerm("sys", "restore failed: " + e.message); }
   };
-  // ---- radial quick-actions: overlay fan inside the thin layers rail (never pushes the tree) ----
-  // slot 0 is always Settings (static); slots 1-3 are user-customizable, persisted.
-  const RADIAL_ACTS = {
+  // ---- profile: the arcade button IS the profile button; fan = settings + btna/btnb/btnc ----
+  // window.cvmProfile = { btna, btnb, btnc } — each {kind:"action"|"url"|"js", value, icon, title}.
+  // window.cvmProfileEvent(type, payload) — the ONE profile/session handler (fire/login/logout/save).
+  const PROFILE_ACTS = {
     register: { icon: "fa-user-plus", title: "Register / login" },
     share:    { icon: "fa-link", title: "Share link" },
     history:  { icon: "fa-clock-rotate-left", title: "Graph history" },
@@ -1189,57 +1195,91 @@
     sqlite:   { icon: "fa-database", title: "SQLite snapshot" },
     settle:   { icon: "fa-atom", title: "Settle layout" },
   };
-  const radialSlots = () => {
-    try { const v = JSON.parse(localStorage.getItem("osint_radial") || "null");
-      if (Array.isArray(v) && v.length === 3 && v.every(k => RADIAL_ACTS[k])) return v; } catch (_) {}
-    return ["register", "share", "history"]; // defaults: register form lives here
+  const profileDefaultBtn = (act) => ({ kind: "action", value: act,
+    icon: (PROFILE_ACTS[act]||{}).icon || "fa-bolt", title: (PROFILE_ACTS[act]||{}).title || act });
+  const loadProfile = () => {
+    try {
+      const v = JSON.parse(localStorage.getItem("osint_profile") || "null");
+      if (v && [v.btna, v.btnb, v.btnc].every(b => b && (b.kind === "url" || b.kind === "js" || PROFILE_ACTS[b.value]))) return v;
+    } catch (_) {}
+    try { // migrate the old layers-rail slots
+      const r = JSON.parse(localStorage.getItem("osint_radial") || "null");
+      if (Array.isArray(r) && r.length === 3 && r.every(k => PROFILE_ACTS[k]))
+        return { btna: profileDefaultBtn(r[0]), btnb: profileDefaultBtn(r[1]), btnc: profileDefaultBtn(r[2]) };
+    } catch (_) {}
+    return { btna: profileDefaultBtn("register"), btnb: profileDefaultBtn("share"), btnc: profileDefaultBtn("history") };
   };
-  const setRadialSlots = (v) => { try { localStorage.setItem("osint_radial", JSON.stringify(v)); } catch (_) {} };
-  const dock = document.getElementById("radialDock"),
-        fab = document.getElementById("radialFab"),
-        fan = document.getElementById("radialFan"),
-        sheet = document.getElementById("radialSheet");
-  const closeRadial = () => { dock.classList.remove("open"); fab.classList.remove("open"); sheet.classList.remove("open"); };
-  const openSheet = (html) => { sheet.innerHTML = html; sheet.classList.add("open"); };
-  const runRadial = (key) => {
-    sheet.classList.remove("open");
+  const saveProfile = (p) => { try { localStorage.setItem("osint_profile", JSON.stringify({ btna: p.btna, btnb: p.btnb, btnc: p.btnc })); } catch (_) {} };
+  const pWrap = document.getElementById("profileWrap"),
+        pPill = document.getElementById("profilePill"),
+        pFan = document.getElementById("profileFan"),
+        pPop = document.getElementById("profilePop");
+  const closeProfile = () => { pWrap.classList.remove("fan-open"); pPill.classList.remove("open"); pPop.classList.remove("open"); };
+  window.cvmProfileEvent = async (type, p) => {
+    p = p || {};
+    const prof = loadProfile();
+    if (type === "fire") {
+      const b = prof[p.slot];
+      if (!b) return;
+      closeProfile();
+      if (b.kind === "url" && b.value) { window.open(b.value, "_blank", "noopener"); return; }
+      if (b.kind === "js" && b.value) {
+        try {
+          const api = { backend: () => BACKEND, headers: () => aiHeaders(),
+            click: (id) => { const el = document.getElementById(id); if (el) el.click(); },
+            log: (m) => { try { aiTerm("sys", m); } catch (_) {} } };
+          await (new Function("cvm", `"use strict";return (async()=>{${b.value}})"`)())(api);
+        } catch (e) { try { aiTerm("sys", "profile button js error: " + e.message); } catch (_) {} }
+        return;
+      }
+      runProfileAction(b.value);
+      return;
+    }
+    if (type === "login") {
+      const uu = (p.user || "").trim() || "anon", tt = (p.token || "").trim();
+      if (p.host) { try { localStorage.setItem("osint_hostmode", p.host); document.getElementById("hostMode").value = p.host; BACKEND = HOSTS[p.host] || window.location.origin; } catch (_) {} }
+      localStorage.setItem("osint_user", uu); localStorage.setItem("osint_token", tt);
+      try { document.getElementById("username").value = uu; document.getElementById("authtoken").value = tt; } catch (_) {}
+      try {
+        const r = await fetch(BACKEND + "/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: uu, token: tt }) });
+        const j = await r.json();
+        const st = document.getElementById("pState") || document.getElementById("loginState");
+        if (st) st.textContent = j.ok ? "✓ " + j.user : "✗ " + (j.error || "login failed");
+      } catch (_) {
+        const st = document.getElementById("pState");
+        if (st) st.textContent = "offline (saved locally)";
+      }
+      try { paintPill(); } catch (_) {}
+      return;
+    }
+    if (type === "logout") {
+      try { localStorage.removeItem("osint_user"); localStorage.removeItem("osint_token"); } catch (_) {}
+      try { document.getElementById("username").value = ""; document.getElementById("authtoken").value = ""; } catch (_) {}
+      try { paintPill(); } catch (_) {}
+      return;
+    }
+  };
+  window.cvmProfileFire = (slot) => window.cvmProfileEvent("fire", { slot });
+  window.cvmProfile = loadProfile();
+  const runProfileAction = (key) => {
     const click = (id) => { const el = document.getElementById(id); if (el) el.click(); };
     if (key === "register") {
       const u = localStorage.getItem("osint_user") || "";
-      openSheet(`<div style="font-size:12px;font-weight:800;margin-bottom:6px"><i class="fa-solid fa-user-plus"></i> Register / login</div>
-        <select id="rHost"><option value="local">Local</option><option value="lan">LAN</option><option value="wan">WAN</option></select>
-        <input id="rUser" placeholder="username" value="${escH(u)}" />
-        <input id="rTok" type="password" placeholder="token (if required)" />
-        <button class="go" id="rGo">Save + Login</button>
-        <div id="rState" style="font-size:11px;color:var(--dim);margin-top:6px"></div>`);
-      document.getElementById("rHost").value = localStorage.getItem("osint_hostmode") || "local";
-      document.getElementById("rGo").onclick = async () => {
-        const uu = document.getElementById("rUser").value.trim() || "anon",
-              tt = document.getElementById("rTok").value.trim();
-        localStorage.setItem("osint_user", uu); localStorage.setItem("osint_token", tt);
-        try { document.getElementById("username").value = uu; document.getElementById("authtoken").value = tt; } catch (_) {}
-        try {
-          const r = await fetch(BACKEND + "/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: uu, token: tt }) });
-          const j = await r.json();
-          document.getElementById("rState").textContent = j.ok ? "✓ " + j.user : "✗ " + (j.error || "login failed");
-        } catch (_) { document.getElementById("rState").textContent = "offline (saved locally)"; }
-        try { paintPill(); } catch (_) {}
-      };
+      pPop.innerHTML = `<div style="font-size:12px;font-weight:800"><i class="fa-solid fa-user-plus"></i> Register / login</div>
+        <select id="pHost"><option value="local">Local</option><option value="lan">LAN</option><option value="wan">WAN</option></select>
+        <input id="pUser" placeholder="username" value="${escH(u)}" />
+        <input id="pTok" type="password" placeholder="token (if required)" />
+        <button class="go" id="pGo">Save + Login</button>
+        <button id="pOut" class="secondary" style="background:rgba(255,255,255,.08);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px;cursor:pointer;font-size:12px">Logout</button>
+        <div id="pState" style="font-size:11px;color:var(--dim)"></div>`;
+      try { document.getElementById("pHost").value = localStorage.getItem("osint_hostmode") || "local"; } catch (_) {}
+      document.getElementById("pGo").onclick = () => window.cvmProfileEvent("login", {
+        user: document.getElementById("pUser").value, token: document.getElementById("pTok").value, host: document.getElementById("pHost").value });
+      document.getElementById("pOut").onclick = () => { window.cvmProfileEvent("logout"); pPop.classList.remove("open"); };
+      pPop.classList.add("open");
       return;
     }
-    if (key === "settings") {
-      const cur = radialSlots();
-      const opts = Object.entries(RADIAL_ACTS).map(([k, v]) => `<option value="${k}">${v.title}</option>`).join("");
-      openSheet(`<div style="font-size:12px;font-weight:800;margin-bottom:6px"><i class="fa-solid fa-gear"></i> Radial buttons</div>
-        ${[0, 1, 2].map(i => `<label style="font-size:11px;color:var(--dim)">button ${i + 1}<select data-slot="${i}">${opts}</select></label>`).join("")}
-        <button class="go" id="rSave">Save</button>`);
-      sheet.querySelectorAll("select[data-slot]").forEach(sel => { sel.value = cur[Number(sel.dataset.slot)]; });
-      document.getElementById("rSave").onclick = () => {
-        const v = [0, 1, 2].map(i => sheet.querySelector(`select[data-slot="${i}"]`).value);
-        setRadialSlots(v); buildRadial(); sheet.classList.remove("open");
-      };
-      return;
-    }
+    if (key === "settings") { openProfileSettings(); return; }
     if (key === "share") return click("shareBtn");
     if (key === "history") return click("histBtn");
     if (key === "showAll") return click("showAll");
@@ -1248,31 +1288,75 @@
     if (key === "sqlite") return click("dbBtn");
     if (key === "settle") return click("settleBtn");
   };
-  const buildRadial = () => {
-    fan.querySelectorAll(".rad-btn").forEach(b => b.remove());
-    // fan geometry: 4 buttons arcing upward inside the ~250px rail (no overflow, no tree shift)
-    const keys = ["settings", ...radialSlots()];
-    const spread = [[-84, -64], [-30, -92], [30, -92], [84, -64]]; // x,y px per button
+  const openProfileSettings = () => {
+    const prof = loadProfile();
+    const actOpts = Object.entries(PROFILE_ACTS).map(([k, v]) => `<option value="${k}">${v.title}</option>`).join("");
+    pPop.innerHTML = `<div style="font-size:12px;font-weight:800"><i class="fa-solid fa-gear"></i> Profile buttons</div>
+      ${["btna", "btnb", "btnc"].map((slot) => {
+        const b = prof[slot] || profileDefaultBtn("share");
+        return `<div data-pslot="${slot}" style="border:1px solid var(--border);border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:6px">
+          <div style="font-size:11px;color:var(--dim);font-weight:800">${slot}</div>
+          <input data-f="title" placeholder="label" value="${escH(b.title || "")}" />
+          <input data-f="icon" placeholder="fa icon (e.g. fa-bolt)" value="${escH(b.icon || "")}" />
+          <select data-f="kind"><option value="action">app action</option><option value="url">url</option><option value="js">js</option></select>
+          <select data-f="action">${actOpts}</select>
+          <input data-f="value" placeholder="https://…  or  js code (api: backend/click/log)" style="display:none" value="${escH(b.kind === "action" ? "" : (b.value || ""))}" />
+        </div>`;
+      }).join("")}
+      <button class="go" id="pSave">Save buttons</button>`;
+    pPop.querySelectorAll("[data-pslot]").forEach((box) => {
+      const slot = box.dataset.pslot, b = prof[slot] || profileDefaultBtn("share");
+      const kind = box.querySelector('[data-f="kind"]'), act = box.querySelector('[data-f="action"]'), val = box.querySelector('[data-f="value"]');
+      kind.value = b.kind || "action";
+      if (b.kind === "action") act.value = PROFILE_ACTS[b.value] ? b.value : "share";
+      const sync = () => { const isAct = kind.value === "action"; act.style.display = isAct ? "" : "none"; val.style.display = isAct ? "none" : ""; };
+      kind.onchange = sync; sync();
+    });
+    pPop.classList.add("open");
+    document.getElementById("pSave").onclick = () => {
+      const next = {};
+      pPop.querySelectorAll("[data-pslot]").forEach((box) => {
+        const kind = box.querySelector('[data-f="kind"]').value;
+        next[box.dataset.pslot] = {
+          kind,
+          value: kind === "action" ? box.querySelector('[data-f="action"]').value : box.querySelector('[data-f="value"]').value.trim(),
+          icon: box.querySelector('[data-f="icon"]').value.trim() || "fa-bolt",
+          title: box.querySelector('[data-f="title"]').value.trim() || box.dataset.pslot,
+        };
+      });
+      saveProfile(next); window.cvmProfile = loadProfile(); buildProfileFan(); pPop.classList.remove("open");
+    };
+  };
+  const buildProfileFan = () => {
+    pFan.querySelectorAll(".rad-btn").forEach(b => b.remove());
+    // fan arcs DOWNWARD from the toolbar pill, inside the tool row (never touches the layers tree)
+    const prof = loadProfile();
+    const keys = ["settings", "btna", "btnb", "btnc"];
+    const spread = [[-84, 64], [-30, 92], [30, 92], [84, 64]]; // x,y px per button
     keys.forEach((k, i) => {
-      const meta = k === "settings" ? { icon: "fa-gear", title: "Settings (radial buttons)" } : RADIAL_ACTS[k];
+      const meta = k === "settings" ? { icon: "fa-gear", title: "Settings (profile buttons)" }
+        : { icon: (prof[k]||{}).icon || "fa-bolt", title: (prof[k]||{}).title || k };
       const b = document.createElement("button");
-      b.className = "rad-btn"; b.title = meta.title;
-      b.innerHTML = `<i class="fa-solid ${meta.icon}"></i>`;
-      b.style.setProperty("--pos", `translate(${spread[i][0]}px,${spread[i][1]}px)`);
-      b.onclick = (e) => { e.stopPropagation(); runRadial(k); };
-      fan.appendChild(b);
+      b.className = "rad-btn" + (k === "settings" ? " rad-settings" : ""); b.title = meta.title;
+      let ic = String(meta.icon || "fa-bolt"); if (!ic.startsWith("fa-")) ic = "fa-" + ic;
+      b.innerHTML = `<i class="fa-solid ${ic}"></i>`;
+      b.style.setProperty("--pos", `translate(calc(-50% + ${spread[i][0]}px),${spread[i][1]}px)`);
+      b.onclick = (e) => { e.stopPropagation(); pPop.classList.remove("open");
+        if (k === "settings") runProfileAction("settings"); else window.cvmProfileFire(k); };
+      pFan.appendChild(b);
     });
   };
-  fab.onclick = (e) => {
+  pPill.onclick = (e) => {
     e.stopPropagation();
-    const willOpen = !dock.classList.contains("open");
-    if (!willOpen) { closeRadial(); return; }
-    buildRadial();
-    dock.classList.add("open"); fab.classList.add("open");
+    const willOpen = !pWrap.classList.contains("fan-open");
+    pPop.classList.remove("open");
+    if (!willOpen) { closeProfile(); return; }
+    window.cvmProfile = loadProfile(); buildProfileFan();
+    pWrap.classList.add("fan-open"); pPill.classList.add("open");
   };
-  document.addEventListener("click", (e) => { if (!dock.contains(e.target)) closeRadial(); });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeRadial(); });
-  try { buildRadial(); } catch (_) {}
+  pPop.onclick = (e) => e.stopPropagation();
+  document.addEventListener("click", (e) => { if (!pWrap.contains(e.target)) closeProfile(); });
+  try { window.cvmProfile = loadProfile(); buildProfileFan(); } catch (_) {}
   document.getElementById("showAll").onclick = () => { tabs.forEach(t=>t.visible=true); renderActive(); renderTabs(); };
   document.getElementById("hideAll").onclick = () => { tabs.forEach(t=>t.visible=false); renderActive(); renderTabs(); };
   document.getElementById("clearAll").onclick = () => {
@@ -1337,11 +1421,8 @@
   const paintPill=()=>{ const u=(document.getElementById("username").value||localStorage.getItem("osint_user")||"").trim();
     document.getElementById("profileAvatar").innerHTML=u?escH(u[0].toUpperCase()):'<i class="fa-solid fa-user-astronaut"></i>';
     document.getElementById("profileDot").classList.toggle("on",/✓/.test(document.getElementById("loginState").textContent||"")); };
-  document.getElementById("profilePill").onclick=(e)=>{ e.stopPropagation(); document.getElementById("profilePop").classList.toggle("open"); paintPill(); };
-  document.getElementById("profilePop").onclick=(e)=>e.stopPropagation();
-  document.addEventListener("click",()=>document.getElementById("profilePop").classList.remove("open"));
-  document.addEventListener("keydown",(e)=>{ if(e.key==="Escape") document.getElementById("profilePop").classList.remove("open"); });
-  document.getElementById("username").addEventListener("input",paintPill);
+  document.getElementById("username").addEventListener("input",()=>{ try{paintPill();}catch(_){} });
+  document.addEventListener("keydown",(e)=>{ if(e.key==="Escape") closeProfile(); });
   window.cvmBackend=()=>BACKEND; window.cvmAiHeaders=aiHeaders;
   // ---- core helpers: shared by Recommend / Improve-full / Improve-node ----
   // Colors: green=add, amber=modify, red=delete. All three flows use these.
