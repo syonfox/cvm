@@ -3359,37 +3359,42 @@
 
 
 <div id="catPal" class="idle" title="your graph familiar — click to see what I'm doing">
-  <div id="toyMouse" title="a questionable mouse… click it"><svg viewBox="0 0 80 70" aria-label="questionable mouse">
-    <path d="M16 54 Q 2 56 6 66 Q 9 71 15 67" stroke="#f9a8d4" stroke-width="3" fill="none" stroke-linecap="round"/>
-    <polygon points="16,54 20,58 10,64" fill="#f9a8d4" opacity=".7"/>
-    <!-- body facets -->
-    <polygon points="16,52 24,28 54,24 68,42 60,60 30,62" fill="#6b7280"/>
-    <polygon points="24,28 40,36 30,62 22,46" fill="#9ca3af"/>
-    <polygon points="54,24 68,42 60,60 48,50 44,32" fill="#374151"/>
-    <polygon points="30,62 44,50 60,60" fill="#e5e7eb" opacity=".85"/>
-    <!-- feet -->
-    <polygon points="28,62 38,62 36,66 26,65" fill="#4b5563"/>
-    <polygon points="50,61 60,60 61,65 50,65" fill="#4b5563"/>
-    <!-- ears -->
-    <polygon class="mouseEar" points="26,30 20,13 38,22" fill="#9ca3af"/>
-    <polygon class="mouseEar" points="26,27 23,17 33,22" fill="#f9a8d4"/>
-    <polygon class="mouseEar" points="40,25 40,10 50,21" fill="#6b7280"/>
-    <polygon class="mouseEar" points="41,22 42,14 47,20" fill="#f9a8d4"/>
-    <!-- face: big eyes + highlights, sniffing nose -->
-    <polygon points="29,38 39,38 34,45" fill="#f9fafb"/>
-    <polygon points="45,38 55,38 50,45" fill="#f9fafb"/>
-    <circle cx="33" cy="41" r="2.3" fill="#030712"/><circle cx="49" cy="41" r="2.3" fill="#030712"/>
-    <circle cx="34" cy="40" r=".8" fill="#fff"/><circle cx="50" cy="40" r=".8" fill="#fff"/>
-    <polygon class="mouseNose" points="11,49 17,47 14,55" fill="#fb7185"/>
-    <g stroke="#e5e7eb" stroke-width="1.1" opacity=".85">
-      <line x1="14" y1="50" x2="3" y2="47"/><line x1="14" y1="54" x2="4" y2="57"/>
-      <line x1="58" y1="50" x2="68" y2="47"/><line x1="58" y1="54" x2="67" y2="58"/>
+  <div id="toyMouse" title="a low-poly mouse… click it"><svg viewBox="0 0 96 72" aria-label="low-poly mouse">
+    <ellipse cx="48" cy="66" rx="28" ry="3.5" fill="rgba(0,0,0,.35)"/>
+    <!-- tail: thin curl tucked under body -->
+    <path d="M20 54 Q 6 56 9 64 Q 11 68 16 65" stroke="#f9a8d4" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <!-- body: mid / light / shade + ridge highlight, cat greys -->
+    <polygon points="20,50 30,28 56,24 70,40 64,58 34,62" fill="#6b7280"/>
+    <polygon points="30,28 46,32 40,58 34,62 24,48" fill="#9ca3af"/>
+    <polygon points="56,24 70,40 64,58 54,50 48,32" fill="#374151"/>
+    <polygon points="30,28 56,24 46,32" fill="#d1d5db" opacity=".9"/>
+    <polygon points="34,58 48,50 64,58 50,62" fill="#e5e7eb" opacity=".9"/>
+    <!-- feet tucked under belly -->
+    <polygon points="33,60 43,60 41,65 31,64" fill="#4b5563"/>
+    <polygon points="53,59 63,58 64,63 53,63" fill="#4b5563"/>
+    <!-- ears: matched pair, outer grey + centred inner pink -->
+    <polygon class="mouseEar" points="28,30 21,13 41,21" fill="#9ca3af"/>
+    <polygon class="mouseEar" points="28,26 25,17 36,21" fill="#f9a8d4"/>
+    <polygon class="mouseEar" points="44,26 45,9 56,19" fill="#6b7280"/>
+    <polygon class="mouseEar" points="46,21 46,14 51,19" fill="#f9a8d4"/>
+    <!-- face: symmetric eyes + catchlights, sniffing nose -->
+    <polygon points="32,37 42,37 37,44" fill="#f9fafb"/>
+    <polygon points="48,37 58,37 53,44" fill="#f9fafb"/>
+    <circle cx="37" cy="40.5" r="2.5" fill="#030712"/><circle cx="53" cy="40.5" r="2.5" fill="#030712"/>
+    <circle cx="38" cy="39.5" r=".9" fill="#fff"/><circle cx="54" cy="39.5" r=".9" fill="#fff"/>
+    <polygon points="34,52 40,51 39,55 35,56" fill="#f9a8d4" opacity=".5"/>
+    <polygon points="56,51 62,51 61,55 57,56" fill="#f9a8d4" opacity=".4"/>
+    <polygon class="mouseNose" points="15,48 21,46 18,54" fill="#fb7185"/>
+    <g stroke="#e5e7eb" stroke-width="1" opacity=".8">
+      <line x1="18" y1="50" x2="8" y2="47"/><line x1="18" y1="53" x2="9" y2="56"/>
+      <line x1="61" y1="46" x2="70" y2="43"/><line x1="61" y1="50" x2="70" y2="50"/>
     </g>
-    <!-- tiny cheese wedge it is guarding -->
-    <polygon points="62,58 74,58 68,50" fill="#fbbf24"/>
-    <polygon points="62,58 68,50 65,58" fill="#f59e0b"/>
-    <circle cx="67" cy="55" r="1.4" fill="#92400e" opacity=".6"/>
-    <text x="64" y="14" font-size="15" font-weight="800" fill="#fbbf24" font-family="Inter,system-ui,sans-serif">?</text>
+    <!-- green yarn ball it guards (ties to slime thread / sweater stripes) -->
+    <circle cx="74" cy="55" r="9" fill="#34d399"/>
+    <circle cx="74" cy="55" r="9" fill="none" stroke="#065f46" stroke-width="1.5"/>
+    <path d="M66 52 Q 74 54 82 51 M66 56 Q 74 59 82 56 M70 47 Q 72 55 71 63" stroke="#065f46" stroke-width="1.2" fill="none" opacity=".8"/>
+    <circle cx="71" cy="52" r="1.8" fill="#fff" opacity=".5"/>
+    <path d="M66 59 Q 58 62 50 59" stroke="#34d399" stroke-width="1.5" fill="none" opacity=".8"/>
   </svg></div>
   <div id="catBubble">napping… click me 🐾</div>
   <svg id="slimeThread" viewBox="0 0 26 40" aria-hidden="true">
@@ -3639,15 +3644,16 @@ window.catPal = (() => {
     b.textContent = text;
     box.classList.add("talking"); setTimeout(() => box.classList.remove("talking"), 1400);
   }
-  // questionable mouse: cat click scurries it out, mouse click replays the tour
+  // low-poly mouse: cat click scurries it out, mouse click replays the tour
   const MOUSE_LINES = ["psst… click the mouse 🐭", "is that… a mouse?! 🐭", "quick, get it! click it! 🐭"];
+  const mouseEl = () => document.getElementById("toyMouse");
   function toggleMouse() {
-    const m = document.getElementById("toyMouse"); if (!m) return;
+    const m = mouseEl(); if (!m) return;
     if (m.classList.contains("show")) { m.classList.remove("show"); return; }
     m.classList.remove("show"); void m.offsetWidth; m.classList.add("show"); // restart the scurry
     banter(MOUSE_LINES[Math.floor(Math.random() * MOUSE_LINES.length)]);
   }
-  function hideMouse() { const m = document.getElementById("toyMouse"); if (m) m.classList.remove("show"); }
+  function hideMouse() { const m = mouseEl(); if (m) m.classList.remove("show"); }
   function catchMouse() {
     hideMouse();
     banter("got it! tour time! 🐭");
